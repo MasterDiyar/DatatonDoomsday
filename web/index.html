@@ -3,153 +3,370 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Проверка оценок CQA</title>
+<title>Контроль качества чатов</title>
 <style>
-:root{--bg:#f6f7f9;--panel:#fff;--text:#1d2330;--muted:#677084;--line:#dfe3ea;--accent:#2457d6;--ok:#1d8a4e;--bad:#c23b3b;--na:#7b6cd9;--hl:#fff3c4;--op:#eaf1ff;--cl:#f2f4f7;--sys:#f4efff}
-@media (prefers-color-scheme:dark){:root{--bg:#14171d;--panel:#1c2028;--text:#e6e9ef;--muted:#98a1b3;--line:#2c323d;--accent:#7aa2ff;--ok:#4cc38a;--bad:#ff7b7b;--na:#b3a6ff;--hl:#4a4020;--op:#1f2a44;--cl:#22262e;--sys:#2a2440}}
-*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
-header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
-header h1{font-size:16px;margin:0 8px 0 0}select,input,textarea,button{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
-button{cursor:pointer}button.primary{background:var(--accent);border-color:var(--accent);color:#fff}button:disabled{opacity:.5;cursor:default}
-main{display:grid;grid-template-columns:260px minmax(0,1fr) 420px;height:calc(100vh - 54px)}
-.col{overflow:auto;border-right:1px solid var(--line)}#list .item{padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer}
-#list .item.active{background:var(--op)}#list .meta{color:var(--muted);font-size:12px}.badge{display:inline-block;font-size:11px;padding:0 6px;border-radius:9px;border:1px solid var(--line);margin-left:4px}
-.badge.rev{color:var(--ok);border-color:var(--ok)}.badge.err{color:var(--bad);border-color:var(--bad)}
-#chat{padding:14px}.turn{display:grid;grid-template-columns:44px 1fr;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:6px;background:var(--cl)}
-.turn.OPERATOR{background:var(--op)}.turn.SYSTEM,.turn.BOT{background:var(--sys)}.turn.hl{outline:2px solid #d9a400;background:var(--hl)}
-.turn .n{font-weight:600;color:var(--muted)}.turn .who{font-size:12px;color:var(--muted)}.turn .txt{white-space:pre-wrap;word-break:break-word}
-#form{padding:12px}.crit{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--panel)}
-.crit h3{font-size:13px;margin:0 0 6px;display:flex;justify-content:space-between;gap:6px}.crit h3 small{color:var(--muted);font-weight:400}
-.crit .row{display:flex;gap:6px;align-items:center;margin-bottom:6px}.crit textarea{width:100%;min-height:44px;resize:vertical}
-.crit input.ev{width:120px}.model{font-size:12px;color:var(--muted);margin-bottom:6px}.diff{color:var(--bad);font-weight:600}
-.scores{display:flex;gap:14px;margin:4px 0 10px;font-size:13px}.scores b{font-size:16px}.actions{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:0;background:var(--bg);padding:6px 0 8px;z-index:1}
-#status{color:var(--muted);font-size:12px;margin-left:auto}.empty{color:var(--muted);padding:30px;text-align:center}
-@media (max-width:1100px){main{grid-template-columns:200px 1fr;height:auto}#formcol{grid-column:1/-1}}
+:root{
+  --bg:#f4f6f5; --panel:#ffffff; --panel-2:#f8faf9; --text:#17221d; --muted:#5f6e67; --line:#e1e7e4;
+  --accent:#16643f; --accent-soft:#e3f1ea; --accent-text:#ffffff;
+  --client:#eef1f0; --operator:#e3f1ea; --system:#f3eefc; --system-text:#5b4b8a;
+  --good:#1b7f4b; --good-soft:#e2f4ea; --warn:#a46200; --warn-soft:#fff3dc; --bad:#b42318; --bad-soft:#fdecea;
+  --hl:#fff1b8; --hl-line:#d9a400; --on-bad:#ffffff; --shadow:0 1px 2px rgba(16,40,28,.06),0 4px 16px rgba(16,40,28,.06);
+  --radius:14px;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1513; --panel:#161e1b; --panel-2:#1b2521; --text:#e6ece9; --muted:#9aa9a2; --line:#27332e;
+  --accent:#4cc38a; --accent-soft:#1d3a2c; --accent-text:#08110d;
+  --client:#1f2925; --operator:#1d3a2c; --system:#262038; --system-text:#c3b5ef;
+  --good:#5fd39a; --good-soft:#163526; --warn:#f1b34a; --warn-soft:#3a2c12; --bad:#ff8a80; --bad-soft:#3d1a18;
+  --hl:#4a3f12; --hl-line:#e0b52a; --on-bad:#2b0a07; --shadow:none;
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{display:grid;grid-template-rows:auto minmax(0,1fr);height:100vh;overflow:hidden;margin:0;background:var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
+
+/* Top bar */
+.top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-weight:700;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.brand i{width:28px;height:28px;border-radius:8px;background:var(--accent);display:inline-grid;place-items:center;color:var(--accent-text);font-style:normal;font-size:15px}
+.pickers{display:flex;gap:12px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:2px}
+.field span{font-size:12px;color:var(--muted)}
+select,input[type=search]{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:7px 10px;min-width:180px}
+.progress{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.bar{width:160px;height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar span{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .3s}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:290px minmax(0,1fr) 440px;gap:16px;padding:16px 20px;min-height:0}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0}
+.pane-head{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.scroll{overflow:auto;min-height:0;flex:1}
+
+/* Chat list */
+.filters{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--panel-2);border-radius:99px;padding:3px 11px;font-size:13px}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.only{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin-top:10px}
+.item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:11px 16px}
+.item:hover{background:var(--panel-2)}
+.item.active{background:var(--accent-soft)}
+.item .who{flex:1;min-width:0}
+.item .id{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .meta{font-size:12px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--line)}
+.dot.done{background:var(--good)}
+.pill{font-size:12px;font-weight:700;border-radius:99px;padding:2px 9px;flex:none;font-variant-numeric:tabular-nums}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.mid{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.none{background:var(--panel-2);color:var(--muted)}
+.flag{color:var(--bad);font-size:12px;font-weight:700}
+
+/* Chat */
+.chat-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.chat-head h2{margin:0;font-size:17px}
+.chat-head .meta{color:var(--muted);font-size:13px}
+.messages{padding:18px 20px 30px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:78%;display:flex;flex-direction:column;gap:3px;scroll-margin:120px}
+.msg .bubble{padding:10px 14px;border-radius:16px;white-space:pre-wrap;word-break:break-word;border:2px solid transparent;transition:background .2s,border-color .2s}
+.msg .label{font-size:12px;color:var(--muted);display:flex;gap:8px}
+.msg .label b{font-weight:600;color:var(--text)}
+.msg.CLIENT{align-self:flex-start}.msg.CLIENT .bubble{background:var(--client);border-top-left-radius:6px}
+.msg.OPERATOR{align-self:flex-end}.msg.OPERATOR .label{justify-content:flex-end}.msg.OPERATOR .bubble{background:var(--operator);border-top-right-radius:6px}
+.msg.BOT,.msg.SYSTEM,.msg.OTHER{align-self:center;max-width:88%;text-align:center}
+.msg.BOT .bubble,.msg.SYSTEM .bubble,.msg.OTHER .bubble{background:var(--system);color:var(--system-text);font-size:13px;padding:6px 12px;border-radius:10px}
+.msg.BOT .label,.msg.SYSTEM .label,.msg.OTHER .label{justify-content:center}
+.msg.hl .bubble{background:var(--hl);border-color:var(--hl-line);color:var(--text)}
+.num{font-variant-numeric:tabular-nums;color:var(--muted)}
+.notice{margin:14px 20px 0;padding:10px 14px;border-radius:10px;background:var(--bad-soft);color:var(--bad);font-size:14px}
+
+/* Verdict */
+.scores{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.score{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--panel-2)}
+.score span{display:block;font-size:12px;color:var(--muted)}
+.score b{font-size:26px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.score b.good{color:var(--good)} .score b.mid{color:var(--warn)} .score b.bad{color:var(--bad)}
+.state{margin-top:8px;font-size:13px;color:var(--muted)}
+.banner{margin-top:10px;padding:8px 12px;border-radius:10px;background:var(--bad-soft);color:var(--bad);font-weight:600;font-size:14px}
+.section{padding:12px 16px 2px}
+.section h3{margin:4px 0 8px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.crit{border:1px solid var(--line);border-radius:12px;padding:12px 12px 10px;margin-bottom:10px;background:var(--panel)}
+.crit.differs{border-color:color-mix(in srgb,var(--warn) 55%,var(--line))}
+.crit-head{display:flex;gap:8px;align-items:baseline;margin-bottom:8px}
+.crit-head .n{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.crit-head .t{font-weight:600;flex:1}
+.crit-head .w{font-size:12px;color:var(--muted);white-space:nowrap}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{position:relative;min-width:54px;padding:7px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);font-weight:600}
+.seg button:hover{border-color:var(--accent)}
+.seg button[aria-checked=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.seg button[aria-checked=true].no{background:var(--bad);border-color:var(--bad);color:var(--on-bad)}
+.seg button .m{position:absolute;top:-8px;right:-6px;font-size:10px;font-weight:700;line-height:1;padding:3px 5px;border-radius:99px;background:var(--warn);color:#fff}
+.hint{font-size:13px;color:var(--muted);margin-top:7px}
+.model{font-size:13px;margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--panel-2);color:var(--muted)}
+.model.differs{background:var(--warn-soft);color:var(--text)}
+.model b{color:var(--text)}
+.turns{display:inline-flex;gap:4px;flex-wrap:wrap;vertical-align:middle;margin-left:4px}
+.turn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:0 6px;font-size:12px;font-variant-numeric:tabular-nums}
+.turn:hover{border-color:var(--accent);color:var(--accent)}
+details{margin-top:8px}
+summary{cursor:pointer;font-size:13px;color:var(--accent);font-weight:600;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸ ";}
+details[open] summary::before{content:"▾ ";}
+textarea,input.ev{width:100%;margin-top:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+textarea{min-height:58px;resize:vertical}
+.actions{position:sticky;bottom:0;display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px;background:var(--panel);border-top:1px solid var(--line);border-radius:0 0 var(--radius) var(--radius)}
+.btn{border:1px solid var(--line);background:var(--panel-2);border-radius:10px;padding:9px 14px;font-weight:600}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.btn:disabled{opacity:.5;cursor:default}
+.saved{font-size:13px;color:var(--good);align-self:center}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted);font-weight:500;padding:6px 8px;font-size:13px}
+.btn.ghost:hover{color:var(--accent);border-color:transparent}
+.actions .row{display:flex;gap:8px;width:100%;flex-wrap:wrap;align-items:center}
+.actions .row .btn.primary{flex:1}
+.empty{padding:40px 20px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--text);font-size:16px;margin-bottom:6px}
+
+@media (max-width:1180px){body{display:block;height:auto;overflow:auto}.layout{grid-template-columns:250px minmax(0,1fr)}.verdict{grid-column:1/-1}.pane{max-height:none}.scroll{max-height:70vh}}
+@media (max-width:760px){.layout{grid-template-columns:1fr;padding:12px}.progress{margin-left:0}.msg{max-width:92%}select,input[type=search]{min-width:0;width:100%}}
 </style>
 </head>
 <body>
-<header>
-  <h1>Проверка оценок</h1>
-  <label>Набор <select id="dataset"></select></label>
-  <label>Ответы модели <select id="preds"><option value="">— нет —</option></select></label>
-  <input id="search" placeholder="Поиск по ID" size="12">
-  <select id="lang"><option value="">Все языки</option><option>RU</option><option>KZ</option><option>EN</option></select>
-  <label><input type="checkbox" id="onlyOpen"> только непроверенные</label>
-  <span id="status"></span>
+<header class="top">
+  <div class="brand"><i>✓</i>Контроль качества чатов</div>
+  <div class="pickers">
+    <label class="field"><span>Набор диалогов</span><select id="dataset"></select></label>
+    <label class="field"><span>Ответы модели</span><select id="preds"></select></label>
+  </div>
+  <div class="progress"><div class="bar" aria-hidden="true"><span id="bar" style="width:0"></span></div><span id="progress">—</span></div>
 </header>
-<main>
-  <div class="col" id="list"></div>
-  <div class="col" id="chat"><div class="empty">Положите файлы с диалогами (JSON) в папку <code>datasets/</code>.</div></div>
-  <div class="col" id="formcol"><div id="form"></div></div>
-</main>
-<script>
-const $=s=>document.querySelector(s);
-const S={checklist:[],convs:[],preds:{},labels:{},cur:null,dirty:false};
-const api=async(path,opt)=>{const r=await fetch(path,opt);const j=await r.json().catch(()=>({error:r.statusText}));if(!r.ok)throw new Error(j.error||r.statusText);return j;};
-const label=v=>v===true?'Да':v===false?'Нет':v===null?'N/A':String(v);
-const status=t=>$('#status').textContent=t;
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-async function init(){
-  S.checklist=await api('/api/checklist');
-  const ds=await api('/api/datasets');
-  $('#dataset').innerHTML=ds.map(d=>`<option value="${esc(d.name)}">${esc(d.name)} (${d.count})${d.error?' ⚠':''}</option>`).join('');
-  const pf=await api('/api/prediction-files');
-  $('#preds').innerHTML='<option value="">— нет —</option>'+pf.map(f=>`<option>${esc(f)}</option>`).join('');
-  const saved=JSON.parse(localStorage.getItem('cqa-view')||'{}');
-  if(saved.dataset&&ds.some(d=>d.name===saved.dataset))$('#dataset').value=saved.dataset;
-  if(saved.preds&&pf.includes(saved.preds))$('#preds').value=saved.preds;
-  else{const guess=pf.find(f=>f.includes(($('#dataset').value||'').replace('.json','')));if(guess)$('#preds').value=guess;}
-  if(ds.length)await loadDataset();
+<main class="layout">
+  <aside class="pane">
+    <div class="pane-head">
+      <input type="search" id="search" placeholder="Поиск по номеру диалога" aria-label="Поиск по номеру диалога" style="width:100%">
+      <div class="filters" id="langs" role="group" aria-label="Язык"></div>
+      <label class="only"><input type="checkbox" id="onlyOpen"> Только непроверенные</label>
+    </div>
+    <div class="scroll" id="list"></div>
+  </aside>
+
+  <section class="pane">
+    <div class="pane-head chat-head" id="chatHead"><h2>Диалог не выбран</h2></div>
+    <div class="scroll" id="chat"><div class="empty"><b>Нет данных</b>Положите файл с диалогами (JSON) в папку <code>datasets</code> и обновите страницу.</div></div>
+  </section>
+
+  <section class="pane verdict">
+    <div class="pane-head" id="summary"></div>
+    <div class="scroll" id="form"></div>
+    <div class="actions">
+      <div class="row"><button class="btn primary" id="save" title="Ctrl+S">Сохранить проверку</button>
+        <button class="btn" id="next" title="Следующий непроверенный диалог">Следующий →</button></div>
+      <div class="row"><button class="btn ghost" id="reset">↺ Вернуть ответ модели</button>
+        <button class="btn ghost" id="run" title="Заново оценить этот диалог моделью">⟳ Оценить моделью заново</button>
+        <span class="saved" id="saved" aria-live="polite"></span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const key = v => JSON.stringify(v);
+const SECTIONS = [
+  ['Начало и понимание запроса', ['contact','discovery']],
+  ['Безопасность и решение', ['identification','consultation']],
+  ['Ведение и завершение диалога', ['empathy','dialogue','closure']],
+  ['Грубые нарушения', ['critical']],
+];
+const LEVELS = {  // официальные описания ступеней (чек-лист, стр. 2)
+  consultation: {20:'Все существенные вопросы закрыты или дан корректный следующий шаг.',15:'Основной вопрос решён, пропущена второстепенная деталь.',10:'Часть запроса закрыта, существенный вопрос остался открытым.',5:'Есть общая подсказка, но клиенту всё ещё непонятно, как действовать.',0:'Ответа по существу нет или ключевая рекомендация ошибочна.','null':'Чат закончился до того, как клиент сформулировал запрос.'},
+  dialogue: {10:'Ответы ясные и связные. Если было явное ожидание, оператор предупредил.',7:'Один заметный сбой, но клиент может понять ответ и продолжить.',4:'Клиенту приходится переспрашивать из-за формулировок или порядка ответов.',0:'Из-за бессвязных или противоречивых реплик ход диалога непонятен.'},
+};
+const WHO = {CLIENT:'Клиент', OPERATOR:'Оператор', BOT:'Бот', SYSTEM:'Система'};
+const S = {checklist:[], convs:[], preds:{}, labels:{}, cur:null, form:{}, dirty:false, lang:''};
+
+const word = (code, v) => v === null ? 'N/A' : v === true ? (code === 'critical' ? 'Есть' : 'Да') : v === false ? (code === 'critical' ? 'Нет' : 'Нет') : String(v);
+const tone = s => s == null ? 'none' : s >= 80 ? 'good' : s >= 50 ? 'mid' : 'bad';
+const fmtTime = t => { const m = /T(\d\d:\d\d:\d\d)/.exec(t || ''); return m ? m[1] : (t || ''); };
+const api = async (path, opt) => { const r = await fetch(path, opt); const j = await r.json().catch(() => ({error: r.statusText})); if (!r.ok) throw new Error(j.error || r.statusText); return j; };
+const post = (path, body) => api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+const remember = () => { try { localStorage.setItem('cqa-view', JSON.stringify({dataset: $('#dataset').value, preds: $('#preds').value})); } catch {} };
+
+async function init() {
+  S.checklist = await api('/api/checklist');
+  const ds = await api('/api/datasets');
+  const pf = await api('/api/prediction-files');
+  $('#dataset').innerHTML = ds.map(d => `<option value="${esc(d.name)}">${esc(d.name)} · ${d.count}${d.error ? ' ⚠' : ''}</option>`).join('');
+  $('#preds').innerHTML = '<option value="">— без ответов модели —</option>' + pf.map(f => `<option>${esc(f)}</option>`).join('');
+  let saved = {}; try { saved = JSON.parse(localStorage.getItem('cqa-view') || '{}'); } catch {}
+  if (saved.dataset && ds.some(d => d.name === saved.dataset)) $('#dataset').value = saved.dataset;
+  if (saved.preds && pf.includes(saved.preds)) $('#preds').value = saved.preds;
+  else { const g = pf.find(f => f.includes(($('#dataset').value || '').replace('.json', ''))); if (g) $('#preds').value = g; }
+  if (ds.length) await loadDataset();
 }
-function remember(){try{localStorage.setItem('cqa-view',JSON.stringify({dataset:$('#dataset').value,preds:$('#preds').value}));}catch{}}
-async function loadDataset(){
-  const name=$('#dataset').value;if(!name)return;remember();status('загрузка…');
-  S.convs=await api('/api/dataset?name='+encodeURIComponent(name));
-  S.labels=await api('/api/labels?name='+encodeURIComponent(name));
+async function loadDataset() {
+  const name = $('#dataset').value; if (!name) return; remember();
+  S.convs = await api('/api/dataset?name=' + encodeURIComponent(name));
+  S.labels = await api('/api/labels?name=' + encodeURIComponent(name));
   await loadPreds();
-  renderList();if(S.convs.length)select(S.convs[0].id);status('');
+  const langs = [...new Set(S.convs.map(c => c.language).filter(Boolean))];
+  $('#langs').innerHTML = ['', ...langs].map(l => `<button class="chip" data-lang="${l}" aria-pressed="${S.lang === l}">${l || 'Все'}</button>`).join('');
+  renderList();
+  if (S.convs.length) select(S.convs[0].id, true);
 }
-async function loadPreds(){const f=$('#preds').value;remember();S.preds=f?await api('/api/predictions?file='+encodeURIComponent(f)):{};}
-function visible(){
-  const q=$('#search').value.trim().toLowerCase(),lang=$('#lang').value,open=$('#onlyOpen').checked;
-  return S.convs.filter(c=>(!q||c.id.toLowerCase().includes(q))&&(!lang||c.language===lang)&&(!open||!S.labels[c.id]?.reviewed));
+async function loadPreds() { const f = $('#preds').value; remember(); S.preds = f ? await api('/api/predictions?file=' + encodeURIComponent(f)) : {}; }
+
+function visible() {
+  const q = $('#search').value.trim().toLowerCase(), open = $('#onlyOpen').checked;
+  return S.convs.filter(c => (!q || c.id.toLowerCase().includes(q)) && (!S.lang || c.language === S.lang) && (!open || !S.labels[c.id]?.reviewed));
 }
-function renderList(){
-  const rev=S.convs.filter(c=>S.labels[c.id]?.reviewed).length;
-  status(`проверено ${rev}/${S.convs.length}`);
-  $('#list').innerHTML=visible().map(c=>{
-    const p=S.preds[c.id],l=S.labels[c.id];
-    const ps=p?.status==='ok'?p.score.final_score:p?'ошибка':'–';
-    return `<div class="item ${S.cur?.id===c.id?'active':''}" data-id="${esc(c.id)}"><div>${esc(c.id)}${l?.reviewed?'<span class="badge rev">проверено</span>':''}${c.error?'<span class="badge err">ошибка в записи</span>':''}${p?.score?.critical_flag?'<span class="badge err">грубая ошибка</span>':''}</div><div class="meta">${esc(c.language)} · ${esc(c.channel)} · модель ${ps}</div></div>`;}).join('')||'<div class="empty">Нет диалогов</div>';
+function renderList() {
+  const done = S.convs.filter(c => S.labels[c.id]?.reviewed).length;
+  $('#progress').textContent = `Проверено ${done} из ${S.convs.length}`;
+  $('#bar').style.width = S.convs.length ? (100 * done / S.convs.length) + '%' : '0';
+  const rows = visible().map(c => {
+    const p = S.preds[c.id], s = p?.status === 'ok' ? p.score.final_score : null;
+    const pill = p ? (p.status === 'ok' ? `<span class="pill ${tone(s)}">${s ?? '—'}</span>` : '<span class="pill bad">ошибка</span>') : '';
+    return `<button class="item ${S.cur?.id === c.id ? 'active' : ''}" data-id="${esc(c.id)}">
+      <span class="dot ${S.labels[c.id]?.reviewed ? 'done' : ''}" title="${S.labels[c.id]?.reviewed ? 'Проверено' : 'Не проверено'}"></span>
+      <span class="who"><div class="id">${esc(c.id)}</div><div class="meta">${esc(c.language)} · ${c.channel === 'voice call' ? 'звонок' : 'чат'}${p?.score?.critical_flag ? ' · <span class="flag">грубая ошибка</span>' : ''}${c.error ? ' · <span class="flag">не оценить</span>' : ''}</div></span>${pill}</button>`;
+  }).join('');
+  $('#list').innerHTML = rows || '<div class="empty">Ничего не найдено</div>';
 }
-function formFrom(c){
-  const l=S.labels[c.id],p=S.preds[c.id];
-  const pc=p?.status==='ok'?Object.fromEntries(p.criteria.map(x=>[x.criterion_id,x])):{};
-  const out={};
-  for(const k of S.checklist){const src=l?.criteria?.[k.code]||pc[k.code];out[k.code]=src?{value:src.value,rationale:src.rationale||'',evidence_turns:[...(src.evidence_turns||[])]}:{value:k.allowed[0],rationale:'',evidence_turns:[]};}
+
+function predCriteria(id) { const p = S.preds[id]; return p?.status === 'ok' ? Object.fromEntries(p.criteria.map(x => [x.criterion_id, x])) : {}; }
+function formFor(c) {
+  const l = S.labels[c.id], pc = predCriteria(c.id), out = {};
+  for (const k of S.checklist) {
+    const src = l?.criteria?.[k.code] || pc[k.code];
+    out[k.code] = src ? {value: src.value, rationale: src.rationale || '', evidence_turns: [...(src.evidence_turns || [])]} : {value: undefined, rationale: '', evidence_turns: []};
+  }
   return out;
 }
-function select(id){
-  if(S.dirty&&!confirm('Несохранённые изменения будут потеряны. Продолжить?'))return;
-  const c=S.convs.find(x=>x.id===id);if(!c)return;S.cur=c;S.form=formFrom(c);S.dirty=false;
-  renderList();renderChat();renderForm();
+function select(id, force) {
+  if (!force && S.dirty && !confirm('Изменения не сохранены. Перейти к другому диалогу?')) return;
+  const c = S.convs.find(x => x.id === id); if (!c) return;
+  S.cur = c; S.form = formFor(c); S.dirty = false; $('#saved').textContent = '';
+  renderList(); renderChat(); renderForm();
+  document.querySelector('.item.active')?.scrollIntoView({block: 'nearest'});
 }
-function renderChat(hl=[]){
-  const c=S.cur;if(!c)return;
-  $('#chat').innerHTML=(c.error?`<div class="crit diff">Запись не может быть оценена: ${esc(c.error)}</div>`:'')+c.turns.map(t=>`<div class="turn ${esc(t.speaker)} ${hl.includes(t.n)?'hl':''}" id="t${t.n}"><div class="n">[${t.n}]</div><div><div class="who">${esc(t.speaker)}${t.ts?' · '+esc(t.ts):''}</div><div class="txt">${esc(t.text)}</div></div></div>`).join('');
+
+function renderChat(hl = []) {
+  const c = S.cur;
+  $('#chatHead').innerHTML = `<h2>${esc(c.id)}</h2><span class="meta">${esc(c.language)} · ${c.channel === 'voice call' ? 'звонок' : 'чат'} · реплик: ${c.turns.length}</span>`;
+  $('#chat').innerHTML = (c.error ? `<div class="notice">Этот диалог нельзя оценить: ${esc(c.error)}</div>` : '') + '<div class="messages">' + c.turns.map(t => {
+    const role = WHO[t.speaker] ? t.speaker : 'OTHER';
+    return `<div class="msg ${role} ${hl.includes(t.n) ? 'hl' : ''}" id="t${t.n}"><div class="label"><span class="num">[${t.n}]</span><b>${esc(WHO[t.speaker] || t.speaker)}</b><span>${esc(fmtTime(t.ts))}</span></div><div class="bubble">${esc(t.text)}</div></div>`;
+  }).join('') + '</div>';
 }
-async function renderForm(){
-  const c=S.cur,p=S.preds[c.id],l=S.labels[c.id];
-  const pc=p?.status==='ok'?Object.fromEntries(p.criteria.map(x=>[x.criterion_id,x])):{};
-  const scoreModel=p?.status==='ok'?p.score.final_score:(p?'ошибка: '+esc(p.error):'–');
-  $('#form').innerHTML=`<div class="actions">
-      <button class="primary" id="save" title="Ctrl+S">Сохранить как проверенное</button>
-      <button id="fill" ${p?.status==='ok'?'':'disabled'}>Заполнить из ответа модели</button>
-      <button id="run">Оценить этот диалог моделью</button>
-      <button id="next">Следующий непроверенный →</button></div>
-    <div class="scores"><span>Наша оценка <b id="lscore">…</b></span><span>Оценка модели <b>${scoreModel}</b></span><span>${l?(l.reviewed?'проверено':'черновик')+' · '+esc(l.updated||''):'ещё не размечено'}</span></div>`+
-    S.checklist.map(k=>{const f=S.form[k.code],m=pc[k.code];const differs=m&&JSON.stringify(m.value)!==JSON.stringify(f.value);
-      return `<div class="crit" data-code="${k.code}"><h3><span>${k.number}. ${esc(k.title)}</span><small>${k.weight?('вес '+k.weight):'флаг'}</small></h3>
-      <div class="row"><select class="val">${k.allowed.map(v=>`<option value='${JSON.stringify(v)}' ${JSON.stringify(v)===JSON.stringify(f.value)?'selected':''}>${label(v)}</option>`).join('')}</select>
-      <input class="ev" value="${esc(f.evidence_turns.join(', '))}" placeholder="реплики, напр. 3, 5" title="номера реплик-доказательств"></div>
-      ${m?`<div class="model ${differs?'diff':''}">модель: ${label(m.value)} — ${esc(m.rationale)} [${m.evidence_turns.join(', ')}]</div>`:''}
-      <textarea class="rat" placeholder="Обоснование">${esc(f.rationale)}</textarea></div>`;}).join('');
-  $('#save').onclick=save;$('#next').onclick=nextOpen;$('#run').onclick=runModel;
-  $('#fill').onclick=()=>{for(const x of p.criteria)S.form[x.criterion_id]={value:x.value,rationale:x.rationale,evidence_turns:[...x.evidence_turns]};S.dirty=true;renderForm();};
-  for(const el of document.querySelectorAll('.crit[data-code]')){
-    const code=el.dataset.code;
-    el.querySelector('.val').onchange=e=>{S.form[code].value=JSON.parse(e.target.value);S.dirty=true;const m=pc[code],hint=el.querySelector('.model');if(m&&hint)hint.classList.toggle('diff',JSON.stringify(m.value)!==JSON.stringify(S.form[code].value));updateScore();};
-    el.querySelector('.ev').oninput=e=>{S.form[code].evidence_turns=e.target.value.split(/[^0-9]+/).filter(Boolean).map(Number);S.dirty=true;renderChat(S.form[code].evidence_turns);};
-    el.querySelector('.rat').oninput=e=>{S.form[code].rationale=e.target.value;S.dirty=true;};
-    el.onmouseenter=()=>renderChat(S.form[code].evidence_turns);
+function highlight(turns, scroll) {
+  document.querySelectorAll('.msg.hl').forEach(e => e.classList.remove('hl'));
+  turns.forEach(n => document.getElementById('t' + n)?.classList.add('hl'));
+  if (scroll && turns.length) document.getElementById('t' + turns[0])?.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+const turnChips = turns => `<span class="turns">${turns.map(n => `<button class="turn" data-turn="${n}" title="Показать реплику ${n}">${n}</button>`).join('')}</span>`;
+
+async function renderSummary() {
+  const c = S.cur, p = S.preds[c.id], l = S.labels[c.id];
+  const model = p ? (p.status === 'ok' ? p.score.final_score : null) : undefined;
+  const values = Object.fromEntries(Object.entries(S.form).map(([k, v]) => [k, v.value]));
+  let ours = null;
+  if (Object.values(values).every(v => v !== undefined)) { try { ours = (await post('/api/score', {values})).final_score; } catch {} }
+  const critical = values.critical === true || p?.score?.critical_flag;
+  $('#summary').innerHTML = `<div class="scores">
+      <div class="score"><span>Оценка модели</span><b class="${tone(model)}">${model === undefined ? '—' : model ?? 'ошибка'}</b></div>
+      <div class="score"><span>Итог проверки</span><b class="${tone(ours)}">${ours ?? '—'}</b></div></div>
+    <div class="state">${l ? (l.reviewed ? '✓ Проверено' : 'Черновик') + (l.updated ? ' · ' + esc(new Date(l.updated).toLocaleString('ru-RU')) : '') : 'Ещё не проверено — ниже ответы модели, исправьте при необходимости.'}</div>
+    ${critical ? '<div class="banner">⚠ Грубая ошибка оператора</div>' : ''}
+    ${p && p.status !== 'ok' ? `<div class="banner">Модель не смогла оценить диалог: ${esc(p.error)}</div>` : ''}`;
+}
+function renderForm() {
+  const pc = predCriteria(S.cur.id);
+  const byCode = Object.fromEntries(S.checklist.map(k => [k.code, k]));
+  $('#form').innerHTML = SECTIONS.map(([title, codes]) => `<div class="section"><h3>${title}</h3>${codes.filter(c => byCode[c]).map(code => {
+    const k = byCode[code], f = S.form[code], m = pc[code];
+    const differs = m && f.value !== undefined && key(m.value) !== key(f.value);
+    const buttons = k.allowed.map(v => {
+      const on = f.value !== undefined && key(v) === key(f.value), bad = (v === false && code !== 'critical') || (v === true && code === 'critical') || v === 0;
+      return `<button role="radio" aria-checked="${on}" class="${bad ? 'no' : ''}" data-v='${key(v)}'>${word(code, v)}${m && key(m.value) === key(v) ? '<span class="m" title="Ответ модели">М</span>' : ''}</button>`;
+    }).join('');
+    const hint = LEVELS[code] && f.value !== undefined ? `<div class="hint">${LEVELS[code][String(f.value)] || ''}</div>` : '';
+    const modelNote = m ? `<div class="model ${differs ? 'differs' : ''}">${differs ? `<b>Модель ответила иначе: ${word(code, m.value)}.</b> ` : '<b>Модель:</b> '}${esc(m.rationale)}${m.evidence_turns.length ? turnChips(m.evidence_turns) : ''}</div>` : '';
+    return `<div class="crit ${differs ? 'differs' : ''}" data-code="${code}">
+      <div class="crit-head"><span class="n">${k.number}</span><span class="t">${esc(k.title)}</span><span class="w">${k.weight ? 'вес ' + k.weight : 'без баллов'}</span></div>
+      <div class="seg" role="radiogroup" aria-label="${esc(k.title)}">${buttons}</div>${hint}${modelNote}
+      <details><summary>Обоснование и реплики-доказательства</summary>
+        <textarea class="rat" placeholder="Почему выбрано это значение">${esc(f.rationale)}</textarea>
+        <input class="ev" value="${esc(f.evidence_turns.join(', '))}" placeholder="Номера реплик через запятую, например: 3, 5" aria-label="Номера реплик"></details>
+    </div>`;
+  }).join('')}</div>`).join('');
+  renderSummary();
+  const hasModel = Object.keys(pc).length > 0;
+  $('#reset').disabled = !hasModel;
+}
+
+function changed() { S.dirty = true; $('#saved').textContent = ''; }
+$('#form').addEventListener('click', e => {
+  const t = e.target.closest('.turn'); if (t) { highlight([+t.dataset.turn], true); return; }
+  const b = e.target.closest('.seg button'); if (!b) return;
+  const code = b.closest('.crit').dataset.code;
+  S.form[code].value = JSON.parse(b.dataset.v); changed(); renderForm();
+});
+$('#form').addEventListener('input', e => {
+  const card = e.target.closest('.crit'); if (!card) return; const code = card.dataset.code;
+  if (e.target.classList.contains('rat')) S.form[code].rationale = e.target.value;
+  if (e.target.classList.contains('ev')) { S.form[code].evidence_turns = e.target.value.split(/[^0-9]+/).filter(Boolean).map(Number); highlight(S.form[code].evidence_turns, false); }
+  changed();
+});
+$('#form').addEventListener('mouseover', e => { const card = e.target.closest('.crit'); if (card) highlight(S.form[card.dataset.code].evidence_turns, false); });
+
+async function save() {
+  const c = S.cur; if (!c) return;
+  const missing = S.checklist.filter(k => S.form[k.code].value === undefined).map(k => k.number);
+  if (missing.length) { $('#saved').textContent = 'Выберите ответ по критериям: ' + missing.join(', '); $('#saved').style.color = 'var(--bad)'; return; }
+  try {
+    S.labels[c.id] = await post('/api/labels?name=' + encodeURIComponent($('#dataset').value), {conversation_id: c.id, criteria: S.form, reviewed: true});
+    S.dirty = false; renderList(); renderSummary();
+    $('#saved').style.color = ''; $('#saved').textContent = '✓ Сохранено';
+  } catch (e) { $('#saved').style.color = 'var(--bad)'; $('#saved').textContent = 'Не удалось сохранить: ' + e.message; }
+}
+function nextOpen() {
+  const list = visible(), i = list.findIndex(c => c.id === S.cur?.id);
+  const n = [...list.slice(i + 1), ...list.slice(0, Math.max(i, 0))].find(c => !S.labels[c.id]?.reviewed);
+  if (n) select(n.id); else { $('#saved').style.color = ''; $('#saved').textContent = 'Все диалоги проверены 🎉'; }
+}
+async function runModel() {
+  const c = S.cur, b = $('#run'); b.disabled = true; b.textContent = 'Оценка… (до минуты)';
+  try { S.preds[c.id] = await api(`/api/evaluate?name=${encodeURIComponent($('#dataset').value)}&id=${encodeURIComponent(c.id)}`, {method: 'POST'}); if (!S.labels[c.id]) S.form = formFor(c); renderList(); renderForm(); }
+  catch (e) { $('#saved').style.color = 'var(--bad)'; $('#saved').textContent = 'Ошибка модели: ' + e.message; }
+  finally { b.disabled = false; b.textContent = '⟳ Оценить моделью заново'; }
+}
+
+$('#save').onclick = save;
+$('#next').onclick = nextOpen;
+$('#run').onclick = runModel;
+$('#reset').onclick = () => { const pc = predCriteria(S.cur.id); for (const [k, x] of Object.entries(pc)) S.form[k] = {value: x.value, rationale: x.rationale, evidence_turns: [...x.evidence_turns]}; changed(); renderForm(); };
+$('#dataset').onchange = loadDataset;
+$('#preds').onchange = async () => { await loadPreds(); renderList(); if (S.cur) select(S.cur.id, true); };
+$('#search').oninput = renderList;
+$('#onlyOpen').onchange = renderList;
+$('#langs').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; S.lang = b.dataset.lang; document.querySelectorAll('#langs .chip').forEach(x => x.setAttribute('aria-pressed', x === b)); renderList(); };
+$('#list').onclick = e => { const it = e.target.closest('.item'); if (it) select(it.dataset.id); };
+$('#chat').onclick = () => highlight([], false);
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const list = visible(), i = list.findIndex(c => c.id === S.cur?.id), n = list[i + (e.key === 'ArrowDown' ? 1 : -1)];
+    if (n) { e.preventDefault(); select(n.id); }
   }
-  updateScore();
-}
-async function updateScore(){
-  const values=Object.fromEntries(Object.entries(S.form).map(([k,v])=>[k,v.value]));
-  try{const r=await api('/api/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({values})});$('#lscore').textContent=r.final_score??'—';}catch(e){$('#lscore').textContent='?';}
-}
-async function save(){
-  const c=S.cur;if(!c)return;
-  try{S.labels[c.id]=await api('/api/labels?name='+encodeURIComponent($('#dataset').value),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation_id:c.id,criteria:S.form,reviewed:true})});
-    S.dirty=false;renderList();renderForm();status('сохранено: '+c.id);}catch(e){alert('Не удалось сохранить: '+e.message);}
-}
-function nextOpen(){
-  const list=S.convs,i=list.findIndex(c=>c.id===S.cur?.id);
-  const n=[...list.slice(i+1),...list.slice(0,i)].find(c=>!S.labels[c.id]?.reviewed);if(n)select(n.id);else status('все диалоги проверены');
-}
-async function runModel(){
-  const c=S.cur;const b=$('#run');b.disabled=true;b.textContent='Оценка… (может занять минуту)';
-  try{S.preds[c.id]=await api(`/api/evaluate?name=${encodeURIComponent($('#dataset').value)}&id=${encodeURIComponent(c.id)}`,{method:'POST'});renderList();renderForm();}
-  catch(e){alert('Ошибка модели: '+e.message);b.disabled=false;b.textContent='Оценить этот диалог моделью';}
-}
-$('#dataset').onchange=loadDataset;$('#preds').onchange=async()=>{await loadPreds();renderList();if(S.cur)select(S.cur.id);};
-$('#search').oninput=renderList;$('#lang').onchange=renderList;$('#onlyOpen').onchange=renderList;
-$('#list').onclick=e=>{const it=e.target.closest('.item');if(it)select(it.dataset.id);};
-document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();save();}});
-window.addEventListener('beforeunload',e=>{if(S.dirty){e.preventDefault();e.returnValue='';}});
-init().catch(e=>status('ошибка: '+e.message));
+});
+window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
+init().catch(e => { $('#chat').innerHTML = `<div class="empty"><b>Не удалось загрузить</b>${esc(e.message)}</div>`; });
 </script>
 </body>
 </html>
