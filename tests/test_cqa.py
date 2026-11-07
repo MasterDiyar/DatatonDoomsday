@@ -287,6 +287,7 @@ class ReviewServer(unittest.TestCase):
                 get = lambda p: json.loads(opener.open(base + p, timeout=5).read())
                 try:
                     self.assertEqual(get("/api/datasets"), [{"name": "dev.json", "count": 1}])
+                    self.assertIn(b"Dynamics 365", opener.open(base + "/d365", timeout=5).read())  # embed demo page
                     self.assertEqual(get("/api/dataset?name=dev.json")[0]["turns"][2]["n"], 3)
                     crit = {k: {"value": v, "rationale": "ok", "evidence_turns": [3, 77]} for k, v in GUIDE.items()}
                     req = urllib.request.Request(base + "/api/labels?name=dev.json", method="POST",

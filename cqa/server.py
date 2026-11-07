@@ -83,6 +83,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if method == "GET" and url.path in ("/", "/index.html"):
                 return self._send(200, (WEB / "index.html").read_bytes(), "text/html; charset=utf-8")
+            if method == "GET" and url.path in ("/d365", "/d365.html"):  # Dynamics 365 form emulator (demo)
+                return self._send(200, (WEB / "d365.html").read_bytes(), "text/html; charset=utf-8")
             if method == "GET" and url.path == "/api/checklist":
                 return self._send(200, [{"code": c.code, "number": c.number, "title": c.title, "weight": c.weight,
                                          "allowed": list(c.allowed), "definition": c.definition} for c in CRITERIA])
