@@ -1,5 +1,5 @@
-"""Prompt and output schema. Used for inference AND for building fine-tuning data, so the fine-tuned
-model sees exactly the same text at training and evaluation time."""
+"""Промпт и схема ответа. Используются и при оценке, и при подготовке данных для дообучения, поэтому
+дообученная модель видит ровно тот же текст, что и при работе."""
 
 from __future__ import annotations
 
@@ -8,49 +8,58 @@ import json
 from .checklist import CRITERIA, GENERAL_RULES
 from .data import Conversation
 
+RATIONALE_LANGUAGE = {
+    "ru": "на русском языке",
+    "kk": "на казахском языке",
+    "en": "на английском языке",
+}
 
-def system_prompt() -> str:
+
+def system_prompt(rationale_language: str = "ru") -> str:
+    lang = RATIONALE_LANGUAGE.get(rationale_language, RATIONALE_LANGUAGE["ru"])
     lines = [
-        "You are a strict quality auditor of a broker's live-chat support. Score the operator's work with the "
-        "checklist below.",
+        "Ты строгий специалист по контролю качества чата поддержки брокера. Оцени работу оператора по "
+        "чек-листу ниже.",
         "",
-        "GENERAL RULES",
+        "ОБЩИЕ ПРАВИЛА",
         GENERAL_RULES,
         "",
-        "CRITERIA",
+        "КРИТЕРИИ",
     ]
     for c in CRITERIA:
         lines.append(f"[{c.code}] {c.number}. {c.title}: {c.definition}")
     lines += [
         "",
-        "OUTPUT",
-        "Turns are numbered [1], [2], ... over the whole transcript (customer, bot and system included). "
-        "Return only JSON: {\"criteria\": {\"<code>\": {\"rationale\": str, \"evidence_turns\": [int], "
-        "\"value\": ...}}} with all 8 codes exactly once.",
-        "- rationale: one or two concrete sentences in English explaining the decision.",
-        "- evidence_turns: the turn numbers that prove the decision. For a missing action, the turns where it "
-        "was expected. For N/A, the turns showing that the N/A condition is met.",
-        "- value: true/false/null for yes/no/N/A criteria; one of the listed numbers for consultation and "
-        "dialogue. critical is true only if a severe violation is present.",
-        "Write the rationale first, then decide the value.",
+        "ФОРМАТ ОТВЕТА",
+        "Реплики пронумерованы [1], [2], … по всему транскрипту (включая клиента, бота и системные сообщения). "
+        "Верни только JSON: {\"criteria\": {\"<код>\": {\"rationale\": строка, \"evidence_turns\": [числа], "
+        "\"value\": …}}}, все 8 кодов ровно по одному разу.",
+        f"- rationale: одно-два конкретных предложения {lang}, почему выбрано это значение; можно коротко "
+        "процитировать реплику.",
+        "- evidence_turns: номера реплик, которые подтверждают решение. Для пропущенного действия — место, где оно "
+        "ожидалось. Для N/A — реплики, показывающие, что условие неприменимости выполнено.",
+        "- value: true/false/null для критериев Да/Нет/N/A; одно из перечисленных чисел для consultation и "
+        "dialogue. critical = true только при грубой ошибке.",
+        "Сначала напиши обоснование, пройдя шаги правила критерия, затем выбери значение.",
     ]
     return "\n".join(lines)
 
 
 def user_prompt(conv: Conversation) -> str:
-    head = f"Language: {conv.language or 'unknown'}. Channel: {conv.channel or 'unknown'}.\nTranscript:"
+    head = f"Язык: {conv.language or 'неизвестен'}. Канал: {conv.channel or 'неизвестен'}.\nТранскрипт:"
     body = "\n".join(
         f"[{t.number}] {t.speaker}{f' ({t.timestamp})' if t.timestamp else ''}: {t.text}" for t in conv.turns
     )
     return f"{head}\n{body}"
 
 
-def messages(conv: Conversation) -> list[dict]:
-    return [{"role": "system", "content": system_prompt()}, {"role": "user", "content": user_prompt(conv)}]
+def messages(conv: Conversation, rationale_language: str = "ru") -> list[dict]:
+    return [{"role": "system", "content": system_prompt(rationale_language)},
+            {"role": "user", "content": user_prompt(conv)}]
 
 
 def output_schema() -> dict:
-    """JSON schema for constrained decoding (Ollama `format`). Property order puts rationale first."""
+    """JSON-схема для ограниченной генерации (Ollama `format`). Обоснование идёт первым."""
     props = {}
     for c in CRITERIA:
         props[c.code] = {
@@ -70,7 +79,7 @@ def output_schema() -> dict:
 
 
 def target_json(criteria: dict) -> str:
-    """Assistant answer for fine-tuning, in the same key order the schema enforces."""
+    """Ответ ассистента для дообучения — в том же порядке ключей, что задаёт схема."""
     ordered = {
         c.code: {
             "rationale": criteria[c.code]["rationale"],
@@ -83,5 +92,5 @@ def target_json(criteria: dict) -> str:
 
 
 def approx_tokens(text: str) -> int:
-    # Cyrillic averages ~3 characters per token for Qwen tokenizers; conservative estimate.
+    # Кириллица в токенизаторе Qwen — в среднем ~3 символа на токен (оценка с запасом).
     return len(text) // 3 + 1

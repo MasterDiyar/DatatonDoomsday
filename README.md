@@ -1,54 +1,56 @@
-# DatatonDoomsday — CQA evaluator
+# DatatonDoomsday — оценка качества чатов (CQA)
 
-Scores live-chat operator work with the **Freedom Broker chat quality checklist** (8 criteria) using a **local model**: Qwen2.5-7B-Instruct on Ollama. It writes `results/dev/results.json` and `results/prod/results.json` in the organisers' **JSON format 1.0**.
+Инструмент оценивает работу операторов чата по **чек-листу качества чатов Freedom Broker** (8 критериев) с помощью **локальной модели** — Qwen2.5-7B-Instruct в Ollama. На выходе — `results/dev/results.json` и `results/prod/results.json` в формате организаторов **JSON 1.0**.
 
-- **Python 3.10+ only.** Evaluation needs no `pip install`, Node or `.env`.
-- Settings live in `config.json` (team name, model, Ollama address).
-- The model's output is forced into the right JSON shape (Ollama structured output). Our code then validates every value and computes the score itself, with N/A redistribution and rounding to two decimals.
-- Runs are resumable. Results are saved after every chat, and a failed chat becomes `status: "error"` with its original ID.
-- A local review page lets the team correct answers. The corrected answers are used to measure accuracy and to fine-tune the model.
+- **Нужен только Python 3.10+.** Для оценки не нужны `pip install`, Node.js или `.env`.
+- Настройки — в `config.json`: название команды, модель, адрес Ollama, язык обоснований.
+- Промпт и обоснования — **на русском** (можно переключить на казахский или английский: `"rationale_language": "kk"` / `"en"`). Чаты на RU/KZ/EN модель читает в оригинале.
+- Модель отвечает строго в нужной JSON-структуре (structured output Ollama). Код проверяет каждое значение и сам считает итоговый балл: перераспределение весов при N/A, округление до двух знаков.
+- **«Завершение» (07) проверяется отдельно.** Модель цитирует итог, предложение помощи и прощание, а код проверяет цитаты. Обрыв связи распознаётся по системным сообщениям.
+- Запуск можно прервать и продолжить: результат сохраняется после каждого диалога. Сбойный диалог получает `status: "error"` с исходным ID.
+- Локальная страница проверки позволяет команде исправить ответы. Исправленные ответы — это разметка для оценки точности и для дообучения.
 
-All commands below are for **Windows PowerShell**. Run them from the project folder, one line at a time.
+Все команды ниже — для **Windows PowerShell**. Запускайте их из папки проекта, по одной строке.
 
-## 1. Install (once)
+## 1. Установка (один раз)
 
 ```powershell
 winget install Python.Python.3.12
 winget install Ollama.Ollama
 ```
 
-Close and reopen PowerShell, then:
+Закройте и снова откройте PowerShell, затем:
 
 ```powershell
 ollama pull qwen2.5:7b-instruct
 python run.py check
 ```
 
-`check` must end with `OK: model answered`. If it says Ollama is not reachable, start the Ollama app (or run `ollama serve` in another window).
+`check` должен закончиться строкой `OK: model answered` и показать, что модель работает на `GPU`. Если Ollama недоступна, запустите приложение Ollama (или `ollama serve` в отдельном окне).
 
-Set your team name in `config.json` (`team_name`).
+В `config.json` укажите название команды (`team_name`).
 
-## 2. Evaluate DEV
+## 2. Оценка DEV
 
-Download the dataset. Keep the organisers' URL exactly as given:
+Скачайте набор. URL организаторов вставьте как есть:
 
 ```powershell
-python run.py fetch "PASTE_DEV_URL" --out datasets/dev.json
+python run.py fetch "ВСТАВЬТЕ_DEV_URL" --out datasets/dev.json
 ```
 
-If you already have the file, just copy it to `datasets\dev.json`. Then:
+Если файл уже есть, просто положите его в `datasets\dev.json`. Затем:
 
 ```powershell
 python run.py evaluate datasets/dev.json --split dev
 ```
 
-This prints a score per chat and an ETA, and writes `results/dev/results.json`.
+Команда показывает балл по каждому диалогу и оставшееся время, а результат пишет в `results/dev/results.json`.
 
-- If it stops or some chats show `ERROR`, run the **same command again**. Finished chats are kept; only failed or missing ones are re-run.
-- `--force` re-evaluates everything.
-- `--votes 3` runs the model three times per chat and takes the majority (slower).
+- Если запуск прервался или у части диалогов `ERROR`, запустите **ту же команду ещё раз**. Готовые диалоги сохраняются, повторно оцениваются только сбойные.
+- `--force` переоценивает всё заново.
+- `--votes 3` запускает модель трижды на диалог и берёт большинство (медленнее).
 
-Publish the results:
+Публикация:
 
 ```powershell
 python run.py validate results/dev/results.json --data datasets/dev.json
@@ -57,10 +59,10 @@ git commit -m "DEV results"
 git push
 ```
 
-## 3. PROD (the 1-hour window)
+## 3. PROD (окно в 1 час)
 
 ```powershell
-python run.py fetch "PASTE_PROD_URL" --out datasets/prod.json
+python run.py fetch "ВСТАВЬТЕ_PROD_URL" --out datasets/prod.json
 python run.py evaluate datasets/prod.json --split prod
 python run.py validate results/prod/results.json --data datasets/prod.json --expect 10
 git add results/prod/results.json
@@ -68,52 +70,52 @@ git commit -m "PROD results"
 git push
 ```
 
-`--split prod` checks that there are exactly 10 entries. Rehearse once on 10 DEV chats to know your timing:
+`--split prod` проверяет, что записей ровно 10. Заранее прогоните 10 диалогов DEV, чтобы знать время:
 
 ```powershell
 python run.py evaluate datasets/dev.json --out runs/rehearsal.json --ids my10.txt
 ```
 
-`my10.txt` contains 10 conversation IDs, one per line.
+`my10.txt` — файл с 10 conversation_id, по одному на строку.
 
-## 4. Review page (the team's labels)
+## 4. Страница проверки (разметка команды)
 
 ```powershell
 python run.py serve
 ```
 
-Open http://127.0.0.1:8000.
+Откройте http://127.0.0.1:8000.
 
-1. Pick the dataset and the model answers file (`results/dev/results.json`).
-2. For each chat: read it, press **Fill from model**, fix what is wrong, then **Save as reviewed** (Ctrl+S).
-3. The page shows the label score next to the model score. Evidence turns are highlighted in the chat. A model answer that differs from your label is shown in red.
+1. Выберите набор и файл с ответами модели (`results/dev/results.json`).
+2. Для каждого диалога: прочитайте его, нажмите **«Заполнить из ответа модели»**, исправьте ошибки, затем **«Сохранить как проверенное»** (Ctrl+S).
+3. Страница показывает нашу оценку рядом с оценкой модели. Реплики-доказательства подсвечиваются в диалоге, а ответ модели, который отличается от нашего, выделен красным.
 
-Labels are saved in `labels/<dataset>.json`. They are our own reference answers, not the organisers' ground truth.
+Разметка сохраняется в `labels/<набор>.json`. Это наши эталонные ответы, а не Ground Truth организаторов.
 
-Measure how often the model agrees with your labels:
+Насколько часто модель совпадает с разметкой:
 
 ```powershell
 python run.py compare results/dev/results.json labels/dev.json
 ```
 
-## 5. Fine-tuning (same model, NVIDIA GPU ≥ 12 GB)
+## 5. Дообучение (та же модель, NVIDIA GPU от 12 ГБ)
 
-WSL2 (Ubuntu) is recommended for training. Native Windows works too, but uses more GPU memory.
+Для обучения лучше использовать WSL2 (Ubuntu). В Windows тоже работает, но расходует больше видеопамяти.
 
-1. **Review DEV labels** on the review page. This is the most important step: the fine-tuned model can only be as good as the labels.
-2. *(optional)* **Synthetic chats** to enlarge the data. They are generated, then labelled by the model, and answers that contradict the planned scenario are dropped:
+1. **Проверьте разметку DEV** на странице проверки. Это главный шаг: дообученная модель не будет лучше разметки.
+2. *(необязательно)* **Синтетические диалоги** для увеличения данных. Их генерирует модель, затем они размечаются; ответы, противоречащие задуманному сценарию, отбрасываются:
    ```powershell
    python run.py synth --count 300 --out datasets/synth.json
    python run.py evaluate datasets/synth.json --out runs/synth-results.json
    python run.py labels-from-results runs/synth-results.json --data datasets/synth.json --scenarios datasets/synth-scenarios.json
    ```
-   A stronger API model can be used for these steps: add `--backend openai --base-url https://... --model <id>` and set the key with `$env:CQA_API_KEY="..."`.
-3. **Training data.** The same prompt is used for training and evaluation. 25% of the real chats are held out for testing:
+   Для этих шагов можно взять более сильную модель по API: добавьте `--backend openai --base-url https://... --model <id>` и задайте ключ: `$env:CQA_API_KEY="..."`.
+3. **Данные для обучения.** Промпт тот же, что и при оценке. 25% реальных диалогов откладываются для проверки:
    ```powershell
    python run.py build-sft --pair datasets/dev.json labels/dev.json --pair datasets/synth.json labels/synth.json --include-unreviewed
    ```
-   Without `--include-unreviewed`, only reviewed labels are used. The synthetic labels are unreviewed.
-4. **Train:**
+   Без `--include-unreviewed` берётся только проверенная разметка; синтетическая разметка не проверена.
+4. **Обучение:**
    ```powershell
    pip install torch --index-url https://download.pytorch.org/whl/cu124
    pip install -r training/requirements.txt
@@ -122,45 +124,45 @@ WSL2 (Ubuntu) is recommended for training. Native Windows works too, but uses mo
    python training/merge_and_export.py --llama-cpp C:/path/to/llama.cpp
    ollama create cqa-qwen7b -f training/Modelfile
    ```
-5. **Check that it helped.** Compare base and fine-tuned on the held-out chats:
+5. **Проверьте, что стало лучше.** Сравните базовую и дообученную модель на отложенных диалогах:
    ```powershell
    python run.py evaluate datasets/dev.json --out runs/base.json --ids training/data/holdout-ids.txt
    python run.py evaluate datasets/dev.json --out runs/ft.json --ids training/data/holdout-ids.txt --model cqa-qwen7b
    python run.py compare runs/base.json labels/dev.json --ids training/data/holdout-ids.txt
    python run.py compare runs/ft.json labels/dev.json --ids training/data/holdout-ids.txt
    ```
-   Use the better one. Put it in `config.json` (`model`, `submission_model_name`) so `results.json` names the model that was actually used.
+   Используйте лучшую. Пропишите её в `config.json` (`model`, `submission_model_name`), чтобы в `results.json` была указана реально использованная модель.
 
-## How a chat is scored
+## Как считается оценка
 
-| Code | Criterion | Values | Weight |
+| Код | Критерий | Значения | Вес |
 | --- | --- | --- | ---: |
-| contact | 01 Contact establishment | true / false | 10 |
-| discovery | 02 Identifying the need | true / false / null | 15 |
-| identification | 03 Identification | true / false / null | 20 |
-| consultation | 04 Correct and complete consultation | 0, 5, 10, 15, 20 / null | 20 |
-| empathy | 05 Empathy | true / false | 15 |
-| dialogue | 06 Dialogue management | 0, 4, 7, 10 | 15 |
-| closure | 07 Closing | true / false / null | 5 |
-| critical | 08 Severe errors (flag, no points) | true / false | — |
+| contact | 01 Установление контакта | true / false | 10 |
+| discovery | 02 Выявление потребности | true / false / null | 15 |
+| identification | 03 Идентификация | true / false / null | 20 |
+| consultation | 04 Корректная и полная консультация | 0, 5, 10, 15, 20 / null | 20 |
+| empathy | 05 Эмпатия и клиентоориентированность | true / false | 15 |
+| dialogue | 06 Управление диалогом, скорость и грамотность | 0, 4, 7, 10 | 15 |
+| closure | 07 Завершение | true / false / null | 5 |
+| critical | 08 Грубые ошибки (флаг, без баллов) | true / false | — |
 
-- The definitions given to the model are in `cqa/checklist.py`; the prompt is in `cqa/prompt.py`.
-- `final_score` = 100 × earned / applicable weight. N/A criteria are excluded, which redistributes their weight.
-- `critical_flag` = the value of `critical`. It does not reduce the score.
-- `evidence_turns` are 1-based over the whole transcript (customer, bot and system turns included).
+- Формулировки и пошаговые правила для модели — в `cqa/checklist.py`, промпт — в `cqa/prompt.py`, проверка завершения — в `cqa/closure.py`.
+- `final_score` = 100 × набранные баллы / вес применимых критериев. Критерии с N/A исключаются, их вес перераспределяется.
+- `critical_flag` = значение `critical`; балл не уменьшает.
+- `evidence_turns` нумеруются с 1 по всему транскрипту (включая клиента, бота и системные сообщения).
 
-## Files
+## Файлы
 
 ```
-run.py            command line (check, fetch, evaluate, validate, serve, compare, synth, build-sft)
-config.json       team name, model, Ollama address
-cqa/              checklist, prompt, model client, scoring, results format, review server
-web/index.html    review page
-training/         QLoRA fine-tuning, GGUF export, Ollama Modelfile
+run.py            командная строка (check, fetch, evaluate, validate, serve, compare, synth, build-sft)
+config.json       команда, модель, адрес Ollama, язык обоснований, проверка завершения
+cqa/              чек-лист, промпт, клиент модели, проверка завершения, подсчёт балла, формат результатов, сервер проверки
+web/index.html    страница проверки
+training/         дообучение QLoRA, экспорт в GGUF, Modelfile для Ollama
 tests/            python -m unittest discover tests
-datasets/         input data (only sample.json is committed)
-results/          dev/results.json and prod/results.json for the organisers
-labels/, runs/    team labels and run logs (not committed)
+datasets/         входные данные (в Git только вымышленный sample.json)
+results/          dev/results.json и prod/results.json для организаторов
+labels/, runs/    разметка команды и журналы запусков (в Git не попадают)
 ```
 
-Try everything without real data: `python run.py evaluate datasets/sample.json --out runs/sample.json`.
+Попробовать без реальных данных: `python run.py evaluate datasets/sample.json --out runs/sample.json`.

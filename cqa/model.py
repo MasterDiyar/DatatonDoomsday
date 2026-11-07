@@ -34,6 +34,8 @@ class ModelConfig:
     timeout: int = 600
     seed: int = 42
     api_key_env: str = "CQA_API_KEY"
+    rationale_language: str = "ru"   # язык обоснований: ru / kk / en
+    closure_check: bool = True       # отдельная проверка критерия 07 «Завершение»
 
 
 def _opener(url: str):

@@ -7,6 +7,7 @@ import time
 from collections import Counter
 
 from . import prompt
+from .closure import check_closure
 from .checklist import BY_CODE, CODES, CRITERIA
 from .data import Conversation
 from .model import ModelConfig, ModelError, chat
@@ -77,7 +78,7 @@ def parse_output(text: str, conv: Conversation) -> dict:
         raw_turns = item.get("evidence_turns") or []
         turns = sorted({int(t) for t in raw_turns if isinstance(t, (int, float)) and not isinstance(t, bool)
                         and 1 <= int(t) <= n})
-        rationale = str(item.get("rationale") or "").strip() or f"{BY_CODE[code].title}: no rationale returned."
+        rationale = str(item.get("rationale") or "").strip() or f"{BY_CODE[code].title}: модель не дала обоснования."
         out[code] = {"value": value, "rationale": rationale, "evidence_turns": turns or _fallback_evidence(conv, value)}
     return out
 
@@ -114,7 +115,7 @@ def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int 
     """Returns (results.json entry, details for debugging). ModelError(fatal) propagates."""
     if conv.error:
         return error_entry(conv.conversation_id, conv.error), {"error": conv.error}
-    msgs = prompt.messages(conv)
+    msgs = prompt.messages(conv, cfg.rationale_language)
     est = prompt.approx_tokens(msgs[0]["content"] + msgs[1]["content"])
     if est + cfg.num_predict > cfg.num_ctx:
         msg = f"prompt ~{est} tokens + {cfg.num_predict} output exceeds num_ctx {cfg.num_ctx}; raise --num-ctx"
@@ -145,4 +146,10 @@ def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int 
                 log(f"\n  attempt failed: {last_error}" + ("; retrying" if attempt < retries else ""))
     if not runs:
         return error_entry(conv.conversation_id, last_error or "model failed"), details
-    return to_entry(conv.conversation_id, _majority(runs)), details
+    final = _majority(runs)
+    if cfg.closure_check:
+        closing = check_closure(conv, cfg)  # ModelError(fatal) propagates like the main call
+        if closing is not None:
+            details["closure_check"] = {"main_model": final["closure"]["value"], "checked": closing["value"]}
+            final["closure"] = closing
+    return to_entry(conv.conversation_id, final), details

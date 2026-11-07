@@ -39,7 +39,7 @@ def build(pairs: list[tuple[str, str]], out_dir: str, holdout: float = 0.25, inc
             crit = label["criteria"]
             for code in CODES:  # empty rationale/evidence would teach the model to omit them
                 if not crit[code]["rationale"]:
-                    crit[code]["rationale"] = f"{BY_CODE[code].title}: see evidence turns."
+                    crit[code]["rationale"] = f"{BY_CODE[code].title}: см. реплики-доказательства."
                 if not crit[code]["evidence_turns"]:
                     crit[code]["evidence_turns"] = (conv.operator_turns or [1]) if crit[code]["value"] is not None else [1]
             msgs = prompt.messages(conv) + [{"role": "assistant", "content": prompt.target_json(crit)}]
