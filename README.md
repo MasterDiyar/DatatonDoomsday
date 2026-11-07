@@ -100,6 +100,19 @@ python run.py serve
 python run.py compare results/dev/results.json labels/dev.json
 ```
 
+### Встраивание в Dynamics 365
+
+Страница работает как HTML web resource (iframe) на форме CRM:
+
+- `http://127.0.0.1:8000/?embed=1` — компактный вид без верхней панели;
+- `http://127.0.0.1:8000/?embed=1&id=<conversation_id>` — только оценка этого диалога (балл, грубые ошибки, 8 критериев с обоснованиями) рядом с текстом диалога;
+- как передаёт параметры Dynamics 365: `?data=id%3D<conversation_id>` (можно добавить `%26results%3Dresults/prod/results.json`);
+- смена записи без перезагрузки: `iframe.contentWindow.postMessage({type: "cqa:open", conversationId: "…"}, "*")`.
+
+Демо-стенд с эмуляцией формы «Звонок»: http://127.0.0.1:8000/d365 — выберите запись вверху справа.
+
+Для настоящего Dynamics 365 (он открывается по HTTPS) страницу нужно разместить по HTTPS-адресу, доступному из CRM; сервер `run.py serve` работает только на этом компьютере.
+
 ## 5. Дообучение (та же модель, NVIDIA GPU от 12 ГБ)
 
 Для обучения лучше использовать WSL2 (Ubuntu). В Windows тоже работает, но расходует больше видеопамяти.

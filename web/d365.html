@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Эмулятор формы Dynamics 365</title>
+<!-- Локальный стенд для демонстрации встраивания (по мотивам public/test-host.html). Не является продуктом Microsoft. -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; height: 100vh; background: #f3f2f1; overflow: hidden; color: #323130; }
+  .nav { width: 48px; background: #002050; display: flex; flex-direction: column; align-items: center; padding-top: 12px; gap: 16px; }
+  .nav i { width: 24px; height: 24px; background: rgba(255,255,255,.2); border-radius: 4px; }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .header { height: 44px; background: #0078d4; color: #fff; display: flex; align-items: center; padding: 0 16px; font-size: 14px; font-weight: 600; }
+  .form-header { background: #fff; border-bottom: 1px solid #e1dfdd; padding: 12px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+  .form-title { font-size: 18px; font-weight: 600; }
+  .form-sub { font-size: 12px; color: #605e5c; }
+  .record { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #605e5c; }
+  .record select { padding: 5px 8px; border: 1px solid #8a8886; border-radius: 2px; font-size: 13px; }
+  .content { flex: 1; padding: 16px; display: flex; flex-direction: column; min-height: 0; }
+  .card { flex: 1; background: #fff; border: 1px solid #e1dfdd; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 1.6px 3.6px rgba(0,0,0,.13); min-height: 0; }
+  .card-title { padding: 8px 12px; background: #f3f2f1; border-bottom: 1px solid #e1dfdd; font-size: 12px; font-weight: 600; color: #605e5c; text-transform: uppercase; }
+  iframe { width: 100%; height: 100%; border: none; }
+</style>
+</head>
+<body>
+<div class="nav"><i></i><i></i><i></i></div>
+<div class="main">
+  <div class="header">Dynamics 365 | Customer Service Hub (эмулятор)</div>
+  <div class="form-header">
+    <div><div class="form-title">Звонок</div><div class="form-sub">Форма сущности «Обращение клиента»</div></div>
+    <label class="record">Запись (conversation_id) <select id="record"></select></label>
+  </div>
+  <div class="content">
+    <div class="card">
+      <div class="card-title">Оценка качества — HTML web resource (режим встраивания)</div>
+      <iframe id="cqa" title="Оценка качества диалога"></iframe>
+    </div>
+  </div>
+</div>
+<script>
+  // В Dynamics 365 web resource получает параметры одним полем data — так и передаём.
+  const frame = document.getElementById('cqa'), select = document.getElementById('record');
+  (async () => {
+    const files = await (await fetch('/api/prediction-files')).json();
+    const results = files.find(f => f.startsWith('results/')) || files[0];
+    const preds = results ? await (await fetch('/api/predictions?file=' + encodeURIComponent(results))).json() : {};
+    const ids = Object.keys(preds);
+    select.innerHTML = ids.map(id => `<option>${id.replace(/[<>&"]/g, '')}</option>`).join('') || '<option value="">нет результатов</option>';
+    const data = new URLSearchParams({id: ids[0] || '', results: results || ''}).toString();
+    frame.src = '/?data=' + encodeURIComponent(data);
+  })();
+  // Переход к другой записи в CRM: сообщаем встроенной странице без перезагрузки.
+  select.onchange = () => frame.contentWindow.postMessage({type: 'cqa:open', conversationId: select.value}, location.origin);
+</script>
+</body>
+</html>

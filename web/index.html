@@ -167,6 +167,18 @@ textarea{min-height:58px;resize:vertical}
 .rcrit .why{font-size:14px;color:var(--muted)}
 .result-actions{display:flex;justify-content:flex-end;padding:10px 16px;border-top:1px solid var(--line)}
 
+/* Embedded in Dynamics 365 (?embed=1): no top bar, compact spacing; ?id=… shows one conversation */
+body.embed{background:var(--panel)}
+body.embed .top{display:none}
+body.embed .results-wrap{padding:8px;gap:8px}
+body.embed .result-actions{display:none}
+body.embed .overview{grid-template-columns:repeat(4,minmax(0,1fr))}
+body.embed .overview .kpi:last-child{display:none}
+body.single .overview,body.single .results>aside{display:none}
+body.single .results-wrap{grid-template-rows:minmax(0,1fr)}
+body.single .results{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:900px){body.embed{display:block;height:auto;overflow:auto}body.embed .results,body.single .results{grid-template-columns:1fr}body.embed .results .pane .scroll{max-height:none}}
+
 @media (max-width:1180px){body{display:block;height:auto;overflow:auto}.overview{grid-template-columns:repeat(2,minmax(0,1fr))}.overview .kpi:last-child{grid-column:1/-1}.results{grid-template-columns:1fr}.results .pane .scroll{max-height:70vh}.layout{grid-template-columns:250px minmax(0,1fr)}.verdict{grid-column:1/-1}.pane{max-height:none}.scroll{max-height:70vh}}
 @media (max-width:760px){.layout{grid-template-columns:1fr;padding:12px}.results-wrap{padding:12px}.bycrit{grid-template-columns:1fr}.tabs{order:3}.progress{margin-left:0}.msg{max-width:92%}select,input[type=search]{min-width:0;width:100%}}
 </style>
@@ -257,6 +269,17 @@ const api = async (path, opt) => { const r = await fetch(path, opt); const j = a
 const post = (path, body) => api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
 const remember = () => { try { localStorage.setItem('cqa-view', JSON.stringify({dataset: $('#dataset').value, preds: $('#preds').value})); } catch {} };
 
+// Параметры встраивания: ?embed=1&id=…&dataset=…&results=…  либо, как передаёт Dynamics 365 web resource,
+// одним полем ?data=id%3D…%26dataset%3D…
+const PARAMS = (() => {
+  const q = new URLSearchParams(location.search), p = {};
+  for (const [k, v] of q) p[k] = v;
+  if (q.get('data')) for (const [k, v] of new URLSearchParams(q.get('data'))) p[k] = v;
+  return {embed: p.embed === '1' || 'data' in p, id: p.id || p.conversation_id || '', dataset: p.dataset || '', results: p.results || ''};
+})();
+if (PARAMS.embed) document.body.classList.add('embed');
+if (PARAMS.embed && PARAMS.id) document.body.classList.add('single');
+
 async function init() {
   S.checklist = await api('/api/checklist');
   const ds = await api('/api/datasets');
@@ -267,8 +290,26 @@ async function init() {
   if (saved.dataset && ds.some(d => d.name === saved.dataset)) $('#dataset').value = saved.dataset;
   if (saved.preds && pf.includes(saved.preds)) $('#preds').value = saved.preds;
   else { const g = pf.find(f => f.includes(($('#dataset').value || '').replace('.json', ''))); if (g) $('#preds').value = g; }
+  if (PARAMS.dataset && ds.some(d => d.name === PARAMS.dataset)) $('#dataset').value = PARAMS.dataset;
+  if (PARAMS.results && pf.includes(PARAMS.results)) $('#preds').value = PARAMS.results;
+  if (PARAMS.embed && PARAMS.id && !PARAMS.dataset) {  // найти набор и файл результатов, где есть этот диалог
+    for (const d of ds) { const list = await api('/api/dataset?name=' + encodeURIComponent(d.name)); if (list.some(c => c.id === PARAMS.id)) { $('#dataset').value = d.name; break; } }
+    if (!PARAMS.results) for (const f of pf) { const pr = await api('/api/predictions?file=' + encodeURIComponent(f)); if (pr[PARAMS.id]) { $('#preds').value = f; break; } }
+  }
   if (ds.length) await loadDataset();
+  if (PARAMS.embed) { setView('results'); if (PARAMS.id) openInEmbed(PARAMS.id); }
 }
+function openInEmbed(id) {
+  if (S.preds[id]) { showResult(id); return; }
+  $('#rsummary').innerHTML = '<div class="empty"><b>Оценки пока нет</b>Для диалога ' + esc(id) + ' нет результата в выбранном файле.</div>';
+  $('#rverdict').innerHTML = ''; $('#rchat').innerHTML = '';
+}
+// Хост (например форма Dynamics 365) может переключить диалог без перезагрузки:
+// iframe.contentWindow.postMessage({type: 'cqa:open', conversationId: '…'}, '*')
+window.addEventListener('message', e => {
+  const m = e.data;
+  if (m && m.type === 'cqa:open' && typeof m.conversationId === 'string') { document.body.classList.add('single'); setView('results'); openInEmbed(m.conversationId); }
+});
 async function loadDataset() {
   const name = $('#dataset').value; if (!name) return; remember();
   S.convs = await api('/api/dataset?name=' + encodeURIComponent(name));
@@ -514,6 +555,7 @@ function showResult(id) {
 function renderResults() {
   renderOverview(); renderResultList();
   const rows = rVisible();
+  if (PARAMS.embed && PARAMS.id) return;
   if (rows.length && !rows.some(r => r.id === S.rcur)) showResult(rows[0].id);
   else if (S.rcur && S.preds[S.rcur]) showResult(S.rcur);
   else { $('#rverdict').innerHTML = ''; $('#rchat').innerHTML = ''; }
@@ -531,7 +573,7 @@ $('#rverdict').onclick = e => { const t = e.target.closest('.turn'); if (t) rHig
 $('#rsearch').oninput = renderResultList;
 $('#rfilters').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; S.rfilter = b.dataset.f; document.querySelectorAll('#rfilters .chip').forEach(x => x.setAttribute('aria-pressed', x === b)); renderResultList(); };
 $('#toReview').onclick = () => { if (!S.rcur) return; setView('review'); select(S.rcur); };
-try { const t = localStorage.getItem('cqa-tab'); if (t === 'review') setView('review'); else setView('results'); } catch { setView('results'); }
+try { const t = localStorage.getItem('cqa-tab'); if (t === 'review' && !PARAMS.embed) setView('review'); else setView('results'); } catch { setView('results'); }
 
 window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
 init().catch(e => { $('#chat').innerHTML = `<div class="empty"><b>Не удалось загрузить</b>${esc(e.message)}</div>`; });
