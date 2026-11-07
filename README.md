@@ -1,266 +1,166 @@
-# DatatonDoomsday — CQA Studio
+# DatatonDoomsday — CQA evaluator
 
-Рабочий прототип Conversation Quality Analytics по руководству Freedom Broker / CQA Hackathon. Интерфейс и документация на русском; транскрипты RU, KZ и EN сохраняются без перевода.
+Scores live-chat operator work with the **Freedom Broker chat quality checklist** (8 criteria) using a **local model**: Qwen2.5-7B-Instruct on Ollama. It writes `results/dev/results.json` and `results/prod/results.json` in the organisers' **JSON format 1.0**.
 
-Главная задача — получить воспроизводимую оценку **нового** диалога по выбранной версии чек-листа, показать доказательства и сохранить исходный и пересмотренный результат.
+- **Python 3.10+ only.** Evaluation needs no `pip install`, Node or `.env`.
+- Settings live in `config.json` (team name, model, Ollama address).
+- The model's output is forced into the right JSON shape (Ollama structured output). Our code then validates every value and computes the score itself, with N/A redistribution and rounding to two decimals.
+- Runs are resumable. Results are saved after every chat, and a failed chat becomes `status: "error"` with its original ID.
+- A local review page lets the team correct answers. The corrected answers are used to measure accuracy and to fine-tune the model.
 
-## Публичная версия репозитория
+All commands below are for **Windows PowerShell**. Run them from the project folder, one line at a time.
 
-В Git хранится код проекта и четыре вымышленных учебных диалога RU/KZ/EN. Реальные транскрипты организаторов, записи звонков, подписанные URL, API-ключи и локальная база не публикуются. Рабочий DEV-набор импортируйте через JSON или API организаторов. Адрес API задаётся в интерфейсе или через `ORGANIZER_API_URL`. Учебные примеры не являются эталоном Ground Truth.
+## 1. Install (once)
 
-Опубликованный интерфейс: https://cqa-studio-dauren.oddcustard.chatgpt.site/
-
-## Запуск за минуту
-
-Требуется **Node.js 24 или новее**. Дополнительные npm-пакеты, Python и Docker не нужны.
-
-1. Клонируйте репозиторий или распакуйте ZIP с кодом.
-2. Откройте терминал в папке проекта.
-3. Запустите:
-
-```sh
-node --env-file-if-exists=.env scripts/dev.mjs
+```powershell
+winget install Python.Python.3.12
+winget install Ollama.Ollama
 ```
 
-4. Откройте **http://127.0.0.1:4173**.
+Close and reopen PowerShell, then:
 
-На Mac также можно запустить `Start-Mac.command`, на Windows — `Start-Windows.bat`. Терминал должен оставаться открытым. Остановка: Ctrl+C. Если порт занят, задайте `PORT` в `.env`.
-
-Альтернативы после установки Node.js: `npm start`, `npm test`, `npm run build`. `npm install` не требуется: зависимостей нет.
-
-При первом запуске в SQLite автоматически загружаются **четыре вымышленных примера**: три чата RU/KZ/EN и один текстовый пример звонка без аудиозаписи. Реальные данные добавьте кнопкой «Загрузить диалоги». Оценки изначально отсутствуют и создаются по запросу. Данные сохраняются между перезапусками в `.data/cqa.sqlite`.
-
-## Официальный чек-лист и контрольная оценка
-
-Начальная конфигурация перенесена из предоставленного официального PDF «Чек-лист качества чатов» Freedom Broker (3 страницы). Она выбрана по умолчанию; ID: `freedom-chat-quality`.
-
-| № | Критерий | Ответ | Вес | N/A |
-| --- | --- | --- | ---: | --- |
-| 01 | Установление контакта | Да / Нет | 10 | Нет |
-| 02 | Выявление потребности | Да / Нет / N/A | 15 | Данных для ответа хватало с самого начала |
-| 03 | Идентификация | Да / Нет / N/A | 20 | Запрос не требовал идентификации |
-| 04 | Корректная и полная консультация | 0, 5, 10, 15, 20 / N/A | 20 | Чат закончился до формулировки запроса |
-| 05 | Эмпатия и клиентоориентированность | Да / Нет | 15 | Нет |
-| 06 | Управление диалогом, скорость и грамотность | 0, 4, 7, 10 | 15 | Нет |
-| 07 | Завершение | Да / Нет / N/A | 5 | Чат оборвался до возможности завершения |
-| 08 | Грубые ошибки | Да / Нет, отдельный флаг | 0 | Нет |
-
-Полные описания ступеней и условия применения сохранены в `src/official-checklist.mjs` и `examples/checklist-official.json`, доступны в редакторе и передаются модели. Система отклоняет промежуточные числа вроде 12/20 и 9/10, отсутствующие в официальной шкале. Их нельзя внести и через апелляцию.
-
-Особенно важные условия:
-
-- Контакт: приветствие на языке клиента **и** представление в **первом ответе оператора**. Реплика бота или более позднее представление не заменяют первый ответ.
-- Идентификация: факт проверки должен быть подтверждён **до** раскрытия данных/защищённого действия. Системное подтверждение допустимо как доказательство; сама просьба пройти проверку недостаточна.
-- Эмпатия: при нейтральном обращении не требуется выдумывать обязательное извинение; при жалобе нужна реакция на конкретную проблему.
-- Завершение: **(итог или дальнейшая помощь) и прощание**. Закрытие чата оператором без прощания — не основание для N/A.
-- Грубые ошибки: только указанные категории — оскорбление, платная услуга в обход компании, раскрытие конфиденциальной информации. Для частной услуги достаточно предложения; оплата не обязательна. Флаг не обнуляет и не снижает сумму.
-- Порог первой реакции в 3 минуты, теги и вложения исключены из оценки. Предупреждение при явном ожидании в ходе разговора относится к 06.
-
-При обновлении с первой версии приложения официальный чек-лист добавляется автоматически. Старые конфигурации, снимки оценок, апелляции и настройки модели сохраняются. Старый демонстрационный пример остаётся отдельным файлом `examples/checklist-demo.json`; он не выбирается вместо официального.
-
-Перед соревнованием:
-
-1. В «Настройки» подключите реальную модель и её API-ключ.
-2. В «Диалоги» выберите официальный Freedom Broker и **«Модель · основная оценка»**.
-3. Импортируйте 10 новых диалогов и запустите оценку. Новые ID заранее не известны системе.
-4. Если организаторы заменяют критерий, измените его через «Чек-листы», сохраните новую версию и примените её к новым диалогам.
-5. Если эталон доступен, загрузите его в «Точность» и сравните ответы по каждому критерию.
-
-API-ключ модели и официальные эталонные ответы не предоставлены. Реальная точность относительно Ground Truth пока не измерена. Прохождение функциональных тестов не является заявлением о точности LLM или гарантией попадания в топ-50.
-
-## Подключение модели
-
-Интерфейс работает с **OpenAI-совместимым `/chat/completions` API**, поддерживающим JSON-ответы. Базовый URL указывается без `/chat/completions`.
-
-Через интерфейс:
-
-- Введите базовый URL и точный идентификатор модели своего провайдера.
-- Введите API-ключ. Он остаётся в памяти текущей вкладки и не записывается в SQLite, localStorage или экспорт.
-- При необходимости укажите актуальные цены входных/выходных токенов на своём тарифе.
-- Сохраните настройки.
-
-Для постоянной серверной конфигурации скопируйте `.env.example` в `.env` и задайте:
-
-```dotenv
-MODEL_API_KEY=your-provider-key
-MODEL_BASE_URL=https://api.openai.com/v1
-MODEL_NAME=your-model-id
-MODEL_INPUT_PRICE=0
-MODEL_OUTPUT_PRICE=0
+```powershell
+ollama pull qwen2.5:7b-instruct
+python run.py check
 ```
 
-Не отправляйте `.env` в Git. На хостинге значения задаются как runtime secrets. Название модели и число вызовов сохраняются с оценкой. При нулевых ценах стоимость показывается как «не задана», а не как бесплатная. Если цены заполнены, приблизительная стоимость **всей оценки** считается по фактическому расходу токенов всех 1–3 вызовов:
+`check` must end with `OK: model answered`. If it says Ollama is not reachable, start the Ollama app (or run `ollama serve` in another window).
 
-```text
-USD = (input_tokens × input_price + output_tokens × output_price) / 1 000 000
+Set your team name in `config.json` (`team_name`).
+
+## 2. Evaluate DEV
+
+Download the dataset. Keep the organisers' URL exactly as given:
+
+```powershell
+python run.py fetch "PASTE_DEV_URL" --out datasets/dev.json
 ```
 
-Ключ отсутствует, модель недоступна, ответ некорректен или превышен лимит — приложение показывает ошибку. Скрытой замены модели локальными правилами нет. Ошибки ключа, квоты, сети и неизвестной модели различаются; при общей ошибке подключения/квоты пакет останавливается без повторения запроса для остальных диалогов. Запросы используют совместимый с Node и Workers режим manual и явно отклоняют перенаправления, чтобы не передавать ключ и транскрипт на другой адрес.
+If you already have the file, just copy it to `datasets\dev.json`. Then:
 
-### Локальная LLM
-
-Для локального OpenAI-совместимого сервера на этом же компьютере задайте `ALLOW_LOCAL_MODEL=1`, `MODEL_API_KEY=local`, `MODEL_NAME=<имя модели>`, `MODEL_BASE_URL=http://127.0.0.1:<порт>/v1` в `.env` и перезапустите приложение. Если локальный сервер требует ключ, укажите его вместо `local`.
-
-Разрешение loopback действует только в локальном Node/SQLite-сервере. В опубликованном Worker разрешены публичные HTTPS-адреса. Локальные модели нужно установить и запустить отдельно; в архив не входят веса или скрытый облачный сервис.
-
-### Своя дообученная модель
-
-Конвейер для дообучения открытой модели (Qwen2.5-7B-Instruct, QLoRA на GPU ≥ 12 ГБ) описан в [`training/README.md`](training/README.md):
-
-1. метки учителя;
-2. ревью командой через апелляции (`scripts/export-labels.mjs`);
-3. синтетические диалоги (`scripts/synthesize-dialogues.mjs`);
-4. SFT-датасет с теми же промптами, что при оценке (`scripts/build-sft-dataset.mjs`, `buildModelMessages()`);
-5. обучение `training/train_lora.py`;
-6. GGUF и Ollama (`training/merge_and_export.py`, `training/Modelfile`);
-7. сравнение с базовой моделью через `scripts/benchmark.mjs`.
-
-Дополнительные параметры запроса к модели, например температура, задаются через `MODEL_EXTRA_BODY={"temperature":0.3}`.
-
-## Файлы результатов для организаторов
-
-```sh
-node --env-file-if-exists=.env scripts/export-hackathon.mjs --state datasets/final-dev.json --data datasets/dev.json --dataset dev --team "Team" --model-name "Model" --mode local
-node scripts/export-hackathon.mjs --validate-only results/prod/results.json --data datasets/prod.json --expect 10
+```powershell
+python run.py evaluate datasets/dev.json --split dev
 ```
 
-Экспортёр создаёт `results/<dev|prod>/results.json` в формате 1.0:
+This prints a score per chat and an ETA, and writes `results/dev/results.json`.
 
-- коды критериев `contact, discovery, identification, consultation, empathy, dialogue, closure, critical`;
-- 1-based `evidence_turns`;
-- `final_score` с перераспределением N/A;
-- `status: "error"` для сбоев и `pending`.
+- If it stops or some chats show `ERROR`, run the **same command again**. Finished chats are kept; only failed or missing ones are re-run.
+- `--force` re-evaluates everything.
+- `--votes 3` runs the model three times per chat and takes the majority (slower).
 
-Валидатор проверяет полноту ID, дубликаты, допустимые значения и для `prod` — ровно 10 записей.
+Publish the results:
 
-## Проверка точности
-
-В настройках доступны два режима:
-
-- **Один проход:** модель получает полный новый транскрипт и текущий чек-лист, возвращает оценки, обоснования и индексы доказательств.
-- **Независимая проверка:** второй проход не получает ответ первого. При расхождении ответов или низкой уверенности третий проход разбирает спорные критерии по полному исходному транскрипту. Если разногласий нет, всего два вызова.
-
-Повторная проверка не гарантирует улучшения: модель может повторять одну и ту же ошибку. Её полезность нужно проверить на Ground Truth. Система сохраняет промежуточные разногласия, финальное решение, фактическое число вызовов и расход токенов.
-
-Промпт требует оценивать смысл, точно соблюдать критерии и условия применимости, не засчитывать бота оператору, не выполнять инструкции из транскрипта и не придумывать доказательства. Сервер проверяет типы, границы и допустимые ступени ответов, полноту списка критериев и индексы доказательств. Основные доказательства могут ссылаться на реплику оператора или системное подтверждение. Реплики клиента/бота идут в отдельный contextEvidence и не засчитываются как действия оператора; выдуманные индексы запрещены.
-
-Для Gemini передаётся выбранный в настройках `reasoning_effort` (по умолчанию low). Это позволяет управлять временем ответа; качество нужно сравнить на эталоне. На один вызов модельного API по умолчанию отводится 180 секунд, значение меняется через `MODEL_TIMEOUT_SECONDS` (30–300).
-
-Числовая уверенность модели — вспомогательный сигнал, а не калиброванная вероятность правильности.
-
-### Ground Truth
-
-Кнопка «Шаблон эталона» выгружает формат для выбранного чек-листа. Заполните его **реальными эталонными** ответами и удалите `exampleOnly`. Не используйте ответы модели как эталон.
-
-Пример структуры (условный критерий, не официальный эталон):
-
-```json
-{
-  "checklistId": "your-official-checklist-id",
-  "checklistVersion": 1,
-  "engine": "model",
-  "records": [
-    {"conversationId": "control-001", "answers": {"criterion-id": true}}
-  ]
-}
+```powershell
+python run.py validate results/dev/results.json --data datasets/dev.json
+git add results/dev/results.json
+git commit -m "DEV results"
+git push
 ```
 
-Сравниваются исходные оценки выбранного способа и точной версии чек-листа. Изменения по апелляциям не повышают метрики задним числом. Оценки старой версии транскрипта исключаются. Эталон не передаётся модели.
+## 3. PROD (the 1-hour window)
 
-Метрики: доля точных совпадений, нормированная абсолютная ошибка ответов и средняя абсолютная ошибка итогового балла из 100. Для числовых ответов ошибка делится на длину шкалы; для несовпадения Да/Нет, N/A или pending ошибка равна 1. Ошибка общего балла считается только при наличии всех эталонных ответов и числового итога. Это наши диагностические метрики, а не формула рейтинга организаторов.
-
-## Функции
-
-| Требование | Реализация |
-| --- | --- |
-| Настраиваемый чек-лист | Добавление/изменение критериев, инструкции, секции, вес, Да/Нет или шкала, N/A, источник доказательств, первый ответ/начало/завершение/весь диалог, критическая ошибка, округление; версии и импорт/экспорт JSON |
-| Новые транскрипты | JSON-файл, TXT/вставка текста, серверный импорт API с `group_id`; поддержка формата `data.records` из задания |
-| Оценка RU/KZ/EN | Модель получает полный текст на исходном языке; единые официальные критерии, язык и исходные реплики передаются модели |
-| Доказательства | Ссылки на конкретные реплики оператора; проверенный участок, если действие не найдено; пояснение N/A |
-| Числовая оценка | Нормировка шкал и весов, перераспределение N/A, результаты секций, отдельный флаг грубой ошибки без баллов в официальном чек-листе |
-| Карточка диалога | Оригинальные роли и временные метки, история оценок, неизменяемый снимок транскрипта и чек-листа |
-| Аудио | HTML audio, оригинальная ссылка, переход к смещению от начала звонка по ISO-времени |
-| Апелляции | Выбор критерия, комментарий, отдельное решение проверяющего с причиной, защита от повторного закрытия, пересчёт итога |
-| Контроль точности | Независимая проверка разногласий, Ground Truth, ошибки по критериям, экспорт отчёта |
-| Экспорт | Все диалоги, оценки, чек-листы, апелляции и аудит в JSON; ключей в экспорте нет |
-| Dynamics 365 | Обычные HTML/CSS/JS, отдельный API, iframe-режим `?embed=1`, без обязательной авторизации внутри приложения |
-
-### Расчёт итогового балла
-
-Для числового критерия `r = (answer - min) / (max - min)`; для обычного Да/Нет `r = 1 или 0`. Для критерия «ошибка при Да» сервер инвертирует вклад в качество, а само нарушение отмечает отдельно.
-
-`total = 100 × sum(r × weight) / sum(applicable_weights)`.
-
-N/A исключается из числителя и знаменателя. Pending отмечается отдельно, временно не включается в сумму, **весь итог показывается предварительным**. Если нет оценённых применимых критериев, итог — прочерк, а не выдуманные 0 или 100. Официальный итог округляется до двух знаков. В пользовательских чек-листах доступно округление 0/1/2 знака. Неокруглённые вклады используются для суммы. Исходная оценка не перезаписывается решениями по апелляциям.
-
-### Локальные правила и проверка без модели
-
-Режим «Локальные правила · демо» работает без сети и ключа и проверяет явно настроенные фразы. **В официальном чек-листе семантические критерии не подменяются такими фразами:** без подключённой модели они остаются pending, а итог не придумывается. Для участия в контрольном этапе используйте модельную оценку.
-
-Для отдельной демонстрации механизма без ключа импортируйте `examples/checklist-demo.json`. Этот пример основан на старых учебных фразах и не является официальной оценкой. Если требуется непрерывная числовая эвристика, она описана в коде; при дискретных ступенях результат локального правила приводится к ближайшей разрешённой ступени. Это не применяется как скрытый fallback при ошибке модели.
-
-У пользовательских правил opening/closing — первые/последние три реплики оператора; first_operator — только первый ответ. В модельном режиме критерий и его область интерпретируются по сохранённой инструкции.
-
-Официальный чек-лист оценивает переписку. К выданным транскриптам звонков он применяется как текстовая проверка; критериев дикции/интонации в нём нет. Если команда добавляет аудиокритерий, текстовая модель его не оценивает. Плеер доступен для импортированных звонков с действующей ссылкой на аудио. В учебном наборе аудиозаписей нет.
-
-## Импорт контрольного набора
-
-На экране загрузки выберите API, вставьте исходный GET URL из кнопки PDF и задайте новый `group_id`. При настроенном `ORGANIZER_API_URL` можно оставить URL пустым. Подпись не добавляется в исходный код приложения. Сервер выполняет запрос, поэтому CORS источника не мешает загрузке.
-
-По умолчанию разные данные с существующим ID отклоняются. Для намеренного обновления отметьте соответствующий флажок; старые оценки сохранят свой исходный снимок и не будут выдаваться за оценку нового текста.
-
-В TXT поддерживается формат:
-
-```text
-00:00 client: Не могу найти тариф.
-00:03 bot: Передаю оператору.
-00:20 operator: Здравствуйте! Откройте раздел «Кабинет».
+```powershell
+python run.py fetch "PASTE_PROD_URL" --out datasets/prod.json
+python run.py evaluate datasets/prod.json --split prod
+python run.py validate results/prod/results.json --data datasets/prod.json --expect 10
+git add results/prod/results.json
+git commit -m "PROD results"
+git push
 ```
 
-Можно использовать ISO-время вместо MM:SS; его исходная запись сохраняется.
+`--split prod` checks that there are exactly 10 entries. Rehearse once on 10 DEV chats to know your timing:
 
-## Оценка файлов из командной строки
-
-Не требует заранее известных ID или DEV-базы:
-
-```sh
-node --env-file-if-exists=.env scripts/evaluate-file.mjs --data control.json --checklist examples/checklist-official.json --out results.json
-node scripts/benchmark.mjs --results results.json --truth ground-truth.json --out accuracy-report.json
+```powershell
+python run.py evaluate datasets/dev.json --out runs/rehearsal.json --ids my10.txt
 ```
 
-Для явной демонстрации правил добавьте `--engine rules`; для одного модельного прохода — `--verification single`. CLI сохраняет успешные результаты после каждого диалога и записывает ошибки отдельно.
+`my10.txt` contains 10 conversation IDs, one per line.
 
-## Архитектура
+## 4. Review page (the team's labels)
 
-- `public/` — самостоятельный интерфейс без React, сборочных зависимостей и внешних шрифтов.
-- `src/official-checklist.mjs` — официальные формулировки, ступени шкал и условия N/A.
-- `src/core.mjs` — валидация, оценка, модельные проходы, весовой расчёт, апелляции, сравнение с эталоном, HTTP API.
-- `src/dataset.mjs`, `examples/demo-dialogues.json` — вымышленные учебные диалоги без готовых оценок.
-- `scripts/dev.mjs` — локальный HTTP-сервер и SQLite из стандартной библиотеки Node.js.
-- `worker/index.js` — адаптер для Cloudflare Workers + D1.
-- `drizzle/` — версия SQL-схемы для хостинга.
-- `scripts/build.mjs` — сборка полного Worker в один ES-модуль с интерфейсом.
-- `tests/` — расчёты, новые данные, модельный протокол, апелляции, параллельные изменения, Ground Truth и проверка рендеринга интерфейса.
-
-Сохранение использует оптимистическую блокировку revision; параллельные действия не должны затирать друг друга. Сервер не отдаёт введённый ключ обратно в API. Запросы импорта ограничены по размеру, внешние адреса — HTTPS, редиректы источника запрещены. Локальный сервер слушает только 127.0.0.1. Это прототип без многопользовательской авторизации и ролей безопасности.
-
-## Проверки
-
-84 теста проверяют бизнес-логику, официальный чек-лист и применение изменений к новым транскриптам.
-
-```sh
-node --test tests/*.test.mjs
-node scripts/build.mjs
-node scripts/validate-artifact.mjs
+```powershell
+python run.py serve
 ```
 
-Тесты используют заглушку модельного API: это проверка протокола и бизнес-логики, а не измерение качества реальной LLM. Проверка шаблонов интерфейса выполняется в JavaScript VM, а не полноценным браузером.
+Open http://127.0.0.1:8000.
 
-## Демонстрация за 5 минут
+1. Pick the dataset and the model answers file (`results/dev/results.json`).
+2. For each chat: read it, press **Fill from model**, fix what is wrong, then **Save as reviewed** (Ctrl+S).
+3. The page shows the label score next to the model score. Evidence turns are highlighted in the chat. A model answer that differs from your label is shown in red.
 
-1. **0:00–1:00** — обзор, импорт DEV, фильтры языка/канала и выбранный диалог.
-2. **1:00–3:00** — оценка, веса, N/A, объяснение, переход к реплике и звук для звонка.
-3. **3:00–4:00** — апелляция, вкладка проверяющего, решение с причиной, исходный и финальный балл.
-4. **4:00–5:00** — изменение критерия, сохранение новой версии и повторная оценка того же или нового диалога.
+Labels are saved in `labels/<dataset>.json`. They are our own reference answers, not the organisers' ground truth.
 
-Перед стоп-кодом зафиксируйте финальный коммит и отправьте организаторам ссылку на этот репозиторий. Сообщения организаторам команда отправляет самостоятельно. Не публикуйте ключи, подписанные URL и реальные записи, если правила распространения данных этого не разрешают.
+Measure how often the model agrees with your labels:
+
+```powershell
+python run.py compare results/dev/results.json labels/dev.json
+```
+
+## 5. Fine-tuning (same model, NVIDIA GPU ≥ 12 GB)
+
+WSL2 (Ubuntu) is recommended for training. Native Windows works too, but uses more GPU memory.
+
+1. **Review DEV labels** on the review page. This is the most important step: the fine-tuned model can only be as good as the labels.
+2. *(optional)* **Synthetic chats** to enlarge the data. They are generated, then labelled by the model, and answers that contradict the planned scenario are dropped:
+   ```powershell
+   python run.py synth --count 300 --out datasets/synth.json
+   python run.py evaluate datasets/synth.json --out runs/synth-results.json
+   python run.py labels-from-results runs/synth-results.json --data datasets/synth.json --scenarios datasets/synth-scenarios.json
+   ```
+   A stronger API model can be used for these steps: add `--backend openai --base-url https://... --model <id>` and set the key with `$env:CQA_API_KEY="..."`.
+3. **Training data.** The same prompt is used for training and evaluation. 25% of the real chats are held out for testing:
+   ```powershell
+   python run.py build-sft --pair datasets/dev.json labels/dev.json --pair datasets/synth.json labels/synth.json --include-unreviewed
+   ```
+   Without `--include-unreviewed`, only reviewed labels are used. The synthetic labels are unreviewed.
+4. **Train:**
+   ```powershell
+   pip install torch --index-url https://download.pytorch.org/whl/cu124
+   pip install -r training/requirements.txt
+   python training/train_lora.py --dry-run
+   python training/train_lora.py
+   python training/merge_and_export.py --llama-cpp C:/path/to/llama.cpp
+   ollama create cqa-qwen7b -f training/Modelfile
+   ```
+5. **Check that it helped.** Compare base and fine-tuned on the held-out chats:
+   ```powershell
+   python run.py evaluate datasets/dev.json --out runs/base.json --ids training/data/holdout-ids.txt
+   python run.py evaluate datasets/dev.json --out runs/ft.json --ids training/data/holdout-ids.txt --model cqa-qwen7b
+   python run.py compare runs/base.json labels/dev.json --ids training/data/holdout-ids.txt
+   python run.py compare runs/ft.json labels/dev.json --ids training/data/holdout-ids.txt
+   ```
+   Use the better one. Put it in `config.json` (`model`, `submission_model_name`) so `results.json` names the model that was actually used.
+
+## How a chat is scored
+
+| Code | Criterion | Values | Weight |
+| --- | --- | --- | ---: |
+| contact | 01 Contact establishment | true / false | 10 |
+| discovery | 02 Identifying the need | true / false / null | 15 |
+| identification | 03 Identification | true / false / null | 20 |
+| consultation | 04 Correct and complete consultation | 0, 5, 10, 15, 20 / null | 20 |
+| empathy | 05 Empathy | true / false | 15 |
+| dialogue | 06 Dialogue management | 0, 4, 7, 10 | 15 |
+| closure | 07 Closing | true / false / null | 5 |
+| critical | 08 Severe errors (flag, no points) | true / false | — |
+
+- The definitions given to the model are in `cqa/checklist.py`; the prompt is in `cqa/prompt.py`.
+- `final_score` = 100 × earned / applicable weight. N/A criteria are excluded, which redistributes their weight.
+- `critical_flag` = the value of `critical`. It does not reduce the score.
+- `evidence_turns` are 1-based over the whole transcript (customer, bot and system turns included).
+
+## Files
+
+```
+run.py            command line (check, fetch, evaluate, validate, serve, compare, synth, build-sft)
+config.json       team name, model, Ollama address
+cqa/              checklist, prompt, model client, scoring, results format, review server
+web/index.html    review page
+training/         QLoRA fine-tuning, GGUF export, Ollama Modelfile
+tests/            python -m unittest discover tests
+datasets/         input data (only sample.json is committed)
+results/          dev/results.json and prod/results.json for the organisers
+labels/, runs/    team labels and run logs (not committed)
+```
+
+Try everything without real data: `python run.py evaluate datasets/sample.json --out runs/sample.json`.

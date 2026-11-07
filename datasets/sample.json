@@ -1,0 +1,45 @@
+{
+  "description": "Fictional demo chats for trying the tool. Not organiser data, not ground truth.",
+  "data": {
+    "records": [
+      {
+        "conversation_id": "sample-ru-001",
+        "language": "RU",
+        "channel": "agent chat",
+        "transcript": [
+          {"timestamp": "2025-03-04T10:00:00Z", "speaker": "bot", "text": "Здравствуйте! Соединяю с оператором."},
+          {"timestamp": "2025-03-04T10:00:20Z", "speaker": "client", "text": "Какая комиссия за покупку акций США?"},
+          {"timestamp": "2025-03-04T10:01:05Z", "speaker": "operator", "text": "Здравствуйте! Меня зовут Айгерим. Подскажите, пожалуйста, какой у вас тарифный план?"},
+          {"timestamp": "2025-03-04T10:01:40Z", "speaker": "client", "text": "Не знаю, обычный."},
+          {"timestamp": "2025-03-04T10:02:30Z", "speaker": "operator", "text": "На базовом тарифе комиссия составляет 0,1% от суммы сделки. Тариф можно посмотреть в приложении в разделе «Профиль» → «Тариф»."},
+          {"timestamp": "2025-03-04T10:03:00Z", "speaker": "client", "text": "Спасибо."},
+          {"timestamp": "2025-03-04T10:03:20Z", "speaker": "operator", "text": "Пожалуйста! Могу ещё чем-то помочь? Хорошего дня!"}
+        ]
+      },
+      {
+        "conversation_id": "sample-kz-001",
+        "language": "KZ",
+        "channel": "agent chat",
+        "transcript": [
+          {"timestamp": "2025-03-05T09:00:00Z", "speaker": "client", "text": "Сәлеметсіз бе, шотымдағы балансты білгім келеді."},
+          {"timestamp": "2025-03-05T09:00:40Z", "speaker": "operator", "text": "Сәлеметсіз бе! Менің атым Дана. Балансты айту үшін жеке басыңызды растау қажет. Қосымшадағы сілтеме арқылы растаңыз."},
+          {"timestamp": "2025-03-05T09:02:00Z", "speaker": "system", "text": "Клиент успешно прошёл идентификацию."},
+          {"timestamp": "2025-03-05T09:02:30Z", "speaker": "operator", "text": "Рахмет! Сіздің портфеліңіздің қазіргі құны 1 250 000 теңге."},
+          {"timestamp": "2025-03-05T09:03:00Z", "speaker": "system", "text": "Чат закрыт оператором."}
+        ]
+      },
+      {
+        "conversation_id": "sample-en-001",
+        "language": "EN",
+        "channel": "agent chat",
+        "transcript": [
+          {"timestamp": "2025-03-06T15:00:00Z", "speaker": "client", "text": "My withdrawal has been pending for 3 days, this is ridiculous!"},
+          {"timestamp": "2025-03-06T15:01:00Z", "speaker": "operator", "text": "Hi."},
+          {"timestamp": "2025-03-06T15:12:00Z", "speaker": "client", "text": "Hello? Is anyone there?"},
+          {"timestamp": "2025-03-06T15:13:00Z", "speaker": "operator", "text": "Withdrawals take time. If you want it faster, send the money to my personal card and I will invest it for you privately."},
+          {"timestamp": "2025-03-06T15:14:00Z", "speaker": "system", "text": "Client disconnected."}
+        ]
+      }
+    ]
+  }
+}
