@@ -356,3 +356,53 @@ class Robustness(unittest.TestCase):
             self.assertEqual(run_dataset(str(data), str(out), SETTINGS, ModelConfig(), log=logs.append), 130)
             self.assertEqual(len(read_json(out)["results"]), 2)  # file stays complete and valid
             self.assertTrue(any("Interrupted" in x for x in logs))
+
+
+class ClosureCheck(unittest.TestCase):
+    def conv(self, *turns):
+        rec = {"conversation_id": "z", "language": "RU", "channel": "agent chat",
+               "transcript": [{"timestamp": "", "speaker": s, "text": t} for s, t in turns]}
+        with tempfile.TemporaryDirectory() as d:
+            return load_dataset(write_dataset(Path(d), [rec]))[0]
+
+    def run_check(self, conv, model_answer):
+        from cqa import closure
+        fake = lambda *a, **k: (json.dumps(model_answer), {})
+        with mock.patch.object(closure, "chat", fake):
+            return closure.check_closure(conv, ModelConfig())
+
+    def test_bare_goodbye_is_no_even_if_model_calls_it_a_summary(self):
+        c = self.conv(("client", "Где тариф?"), ("operator", "Здравствуйте, я Алина. В «Кабинете»."),
+                      ("client", "Спасибо"), ("operator", "Пожалуйста. Хорошего вечера!"))
+        r = self.run_check(c, {"summary": "Пожалуйста. Хорошего вечера!", "offer": "", "goodbye": "Хорошего вечера"})
+        self.assertIs(r["value"], False)
+
+    def test_summary_or_offer_plus_goodbye_is_yes(self):
+        c = self.conv(("client", "Где тариф?"), ("operator", "Я передал вопрос специалистам, ответ придёт в этот чат. До свидания!"))
+        r = self.run_check(c, {"summary": "Я передал вопрос специалистам, ответ придёт в этот чат", "offer": "", "goodbye": "До свидания"})
+        self.assertIs(r["value"], True)
+        c = self.conv(("client", "Где тариф?"), ("operator", "Если вопрос останется, напишите нам. До свидания!"))
+        self.assertIs(self.run_check(c, {})["value"], True)  # offer + goodbye found by rules alone
+
+    def test_invented_quote_is_ignored(self):
+        c = self.conv(("client", "Где тариф?"), ("operator", "Хорошего дня!"))
+        r = self.run_check(c, {"summary": "Вопрос решён, отчёт отправлен клиенту", "offer": "", "goodbye": ""})
+        self.assertIs(r["value"], False)
+
+    def test_disconnect_is_na_and_operator_close_is_no(self):
+        c = self.conv(("client", "Где форма?"), ("operator", "Здравствуйте. Я Илья. Форма на английском."),
+                      ("client", "Ок"), ("system", "Соединение с клиентом прервано."))
+        self.assertIsNone(self.run_check(c, {})["value"])
+        c = self.conv(("client", "Где форма?"), ("operator", "Тогда не знаю."), ("system", "Оператор закрыл чат."))
+        r = self.run_check(c, {})
+        self.assertIs(r["value"], False)
+        self.assertIn("закрыл чат", r["rationale"])
+        # the operator talking after the customer hung up does not count
+        c = self.conv(("client", "Понятно, спасибо."), ("operator", "Поручение передано трейдеру."),
+                      ("system", "Клиент завершил разговор."), ("operator", "Остались дополнительные вопросы?"))
+        self.assertIsNone(self.run_check(c, {})["value"])
+
+    def test_prompt_is_russian_and_rationale_language_switches(self):
+        self.assertIn("Оцени работу оператора", prompt.system_prompt())
+        self.assertIn("на русском языке", prompt.system_prompt())
+        self.assertIn("на казахском языке", prompt.system_prompt("kk"))

@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CQA Review</title>
+<title>Проверка оценок CQA</title>
 <style>
 :root{--bg:#f6f7f9;--panel:#fff;--text:#1d2330;--muted:#677084;--line:#dfe3ea;--accent:#2457d6;--ok:#1d8a4e;--bad:#c23b3b;--na:#7b6cd9;--hl:#fff3c4;--op:#eaf1ff;--cl:#f2f4f7;--sys:#f4efff}
 @media (prefers-color-scheme:dark){:root{--bg:#14171d;--panel:#1c2028;--text:#e6e9ef;--muted:#98a1b3;--line:#2c323d;--accent:#7aa2ff;--ok:#4cc38a;--bad:#ff7b7b;--na:#b3a6ff;--hl:#4a4020;--op:#1f2a44;--cl:#22262e;--sys:#2a2440}}
@@ -29,24 +29,24 @@ main{display:grid;grid-template-columns:260px minmax(0,1fr) 420px;height:calc(10
 </head>
 <body>
 <header>
-  <h1>CQA Review</h1>
-  <label>Dataset <select id="dataset"></select></label>
-  <label>Model answers <select id="preds"><option value="">— none —</option></select></label>
-  <input id="search" placeholder="Search ID" size="12">
-  <select id="lang"><option value="">All languages</option><option>RU</option><option>KZ</option><option>EN</option></select>
-  <label><input type="checkbox" id="onlyOpen"> only unreviewed</label>
+  <h1>Проверка оценок</h1>
+  <label>Набор <select id="dataset"></select></label>
+  <label>Ответы модели <select id="preds"><option value="">— нет —</option></select></label>
+  <input id="search" placeholder="Поиск по ID" size="12">
+  <select id="lang"><option value="">Все языки</option><option>RU</option><option>KZ</option><option>EN</option></select>
+  <label><input type="checkbox" id="onlyOpen"> только непроверенные</label>
   <span id="status"></span>
 </header>
 <main>
   <div class="col" id="list"></div>
-  <div class="col" id="chat"><div class="empty">Put dataset JSON files into the <code>datasets/</code> folder.</div></div>
+  <div class="col" id="chat"><div class="empty">Положите файлы с диалогами (JSON) в папку <code>datasets/</code>.</div></div>
   <div class="col" id="formcol"><div id="form"></div></div>
 </main>
 <script>
 const $=s=>document.querySelector(s);
 const S={checklist:[],convs:[],preds:{},labels:{},cur:null,dirty:false};
 const api=async(path,opt)=>{const r=await fetch(path,opt);const j=await r.json().catch(()=>({error:r.statusText}));if(!r.ok)throw new Error(j.error||r.statusText);return j;};
-const label=v=>v===true?'Yes':v===false?'No':v===null?'N/A':String(v);
+const label=v=>v===true?'Да':v===false?'Нет':v===null?'N/A':String(v);
 const status=t=>$('#status').textContent=t;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -55,7 +55,7 @@ async function init(){
   const ds=await api('/api/datasets');
   $('#dataset').innerHTML=ds.map(d=>`<option value="${esc(d.name)}">${esc(d.name)} (${d.count})${d.error?' ⚠':''}</option>`).join('');
   const pf=await api('/api/prediction-files');
-  $('#preds').innerHTML='<option value="">— none —</option>'+pf.map(f=>`<option>${esc(f)}</option>`).join('');
+  $('#preds').innerHTML='<option value="">— нет —</option>'+pf.map(f=>`<option>${esc(f)}</option>`).join('');
   const saved=JSON.parse(localStorage.getItem('cqa-view')||'{}');
   if(saved.dataset&&ds.some(d=>d.name===saved.dataset))$('#dataset').value=saved.dataset;
   if(saved.preds&&pf.includes(saved.preds))$('#preds').value=saved.preds;
@@ -64,7 +64,7 @@ async function init(){
 }
 function remember(){try{localStorage.setItem('cqa-view',JSON.stringify({dataset:$('#dataset').value,preds:$('#preds').value}));}catch{}}
 async function loadDataset(){
-  const name=$('#dataset').value;if(!name)return;remember();status('loading…');
+  const name=$('#dataset').value;if(!name)return;remember();status('загрузка…');
   S.convs=await api('/api/dataset?name='+encodeURIComponent(name));
   S.labels=await api('/api/labels?name='+encodeURIComponent(name));
   await loadPreds();
@@ -77,11 +77,11 @@ function visible(){
 }
 function renderList(){
   const rev=S.convs.filter(c=>S.labels[c.id]?.reviewed).length;
-  status(`reviewed ${rev}/${S.convs.length}`);
+  status(`проверено ${rev}/${S.convs.length}`);
   $('#list').innerHTML=visible().map(c=>{
     const p=S.preds[c.id],l=S.labels[c.id];
-    const ps=p?.status==='ok'?p.score.final_score:p?'err':'–';
-    return `<div class="item ${S.cur?.id===c.id?'active':''}" data-id="${esc(c.id)}"><div>${esc(c.id)}${l?.reviewed?'<span class="badge rev">reviewed</span>':''}${c.error?'<span class="badge err">invalid</span>':''}${p?.score?.critical_flag?'<span class="badge err">critical</span>':''}</div><div class="meta">${esc(c.language)} · ${esc(c.channel)} · model ${ps}</div></div>`;}).join('')||'<div class="empty">No chats</div>';
+    const ps=p?.status==='ok'?p.score.final_score:p?'ошибка':'–';
+    return `<div class="item ${S.cur?.id===c.id?'active':''}" data-id="${esc(c.id)}"><div>${esc(c.id)}${l?.reviewed?'<span class="badge rev">проверено</span>':''}${c.error?'<span class="badge err">ошибка в записи</span>':''}${p?.score?.critical_flag?'<span class="badge err">грубая ошибка</span>':''}</div><div class="meta">${esc(c.language)} · ${esc(c.channel)} · модель ${ps}</div></div>`;}).join('')||'<div class="empty">Нет диалогов</div>';
 }
 function formFrom(c){
   const l=S.labels[c.id],p=S.preds[c.id];
@@ -91,30 +91,30 @@ function formFrom(c){
   return out;
 }
 function select(id){
-  if(S.dirty&&!confirm('Discard unsaved changes?'))return;
+  if(S.dirty&&!confirm('Несохранённые изменения будут потеряны. Продолжить?'))return;
   const c=S.convs.find(x=>x.id===id);if(!c)return;S.cur=c;S.form=formFrom(c);S.dirty=false;
   renderList();renderChat();renderForm();
 }
 function renderChat(hl=[]){
   const c=S.cur;if(!c)return;
-  $('#chat').innerHTML=(c.error?`<div class="crit diff">Invalid record: ${esc(c.error)}</div>`:'')+c.turns.map(t=>`<div class="turn ${esc(t.speaker)} ${hl.includes(t.n)?'hl':''}" id="t${t.n}"><div class="n">[${t.n}]</div><div><div class="who">${esc(t.speaker)}${t.ts?' · '+esc(t.ts):''}</div><div class="txt">${esc(t.text)}</div></div></div>`).join('');
+  $('#chat').innerHTML=(c.error?`<div class="crit diff">Запись не может быть оценена: ${esc(c.error)}</div>`:'')+c.turns.map(t=>`<div class="turn ${esc(t.speaker)} ${hl.includes(t.n)?'hl':''}" id="t${t.n}"><div class="n">[${t.n}]</div><div><div class="who">${esc(t.speaker)}${t.ts?' · '+esc(t.ts):''}</div><div class="txt">${esc(t.text)}</div></div></div>`).join('');
 }
 async function renderForm(){
   const c=S.cur,p=S.preds[c.id],l=S.labels[c.id];
   const pc=p?.status==='ok'?Object.fromEntries(p.criteria.map(x=>[x.criterion_id,x])):{};
-  const scoreModel=p?.status==='ok'?p.score.final_score:(p?'error: '+esc(p.error):'–');
+  const scoreModel=p?.status==='ok'?p.score.final_score:(p?'ошибка: '+esc(p.error):'–');
   $('#form').innerHTML=`<div class="actions">
-      <button class="primary" id="save" title="Ctrl+S">Save as reviewed</button>
-      <button id="fill" ${p?.status==='ok'?'':'disabled'}>Fill from model</button>
-      <button id="run">Run model on this chat</button>
-      <button id="next">Next unreviewed →</button></div>
-    <div class="scores"><span>Label score <b id="lscore">…</b></span><span>Model score <b>${scoreModel}</b></span><span>${l?(l.reviewed?'reviewed':'draft')+' · '+esc(l.updated||''):'not labelled yet'}</span></div>`+
+      <button class="primary" id="save" title="Ctrl+S">Сохранить как проверенное</button>
+      <button id="fill" ${p?.status==='ok'?'':'disabled'}>Заполнить из ответа модели</button>
+      <button id="run">Оценить этот диалог моделью</button>
+      <button id="next">Следующий непроверенный →</button></div>
+    <div class="scores"><span>Наша оценка <b id="lscore">…</b></span><span>Оценка модели <b>${scoreModel}</b></span><span>${l?(l.reviewed?'проверено':'черновик')+' · '+esc(l.updated||''):'ещё не размечено'}</span></div>`+
     S.checklist.map(k=>{const f=S.form[k.code],m=pc[k.code];const differs=m&&JSON.stringify(m.value)!==JSON.stringify(f.value);
-      return `<div class="crit" data-code="${k.code}"><h3><span>${k.number}. ${esc(k.title)}</span><small>${k.weight?('weight '+k.weight):'flag'}</small></h3>
+      return `<div class="crit" data-code="${k.code}"><h3><span>${k.number}. ${esc(k.title)}</span><small>${k.weight?('вес '+k.weight):'флаг'}</small></h3>
       <div class="row"><select class="val">${k.allowed.map(v=>`<option value='${JSON.stringify(v)}' ${JSON.stringify(v)===JSON.stringify(f.value)?'selected':''}>${label(v)}</option>`).join('')}</select>
-      <input class="ev" value="${esc(f.evidence_turns.join(', '))}" placeholder="turns e.g. 3, 5" title="evidence turns"></div>
-      ${m?`<div class="model ${differs?'diff':''}">model: ${label(m.value)} — ${esc(m.rationale)} [${m.evidence_turns.join(', ')}]</div>`:''}
-      <textarea class="rat" placeholder="Rationale">${esc(f.rationale)}</textarea></div>`;}).join('');
+      <input class="ev" value="${esc(f.evidence_turns.join(', '))}" placeholder="реплики, напр. 3, 5" title="номера реплик-доказательств"></div>
+      ${m?`<div class="model ${differs?'diff':''}">модель: ${label(m.value)} — ${esc(m.rationale)} [${m.evidence_turns.join(', ')}]</div>`:''}
+      <textarea class="rat" placeholder="Обоснование">${esc(f.rationale)}</textarea></div>`;}).join('');
   $('#save').onclick=save;$('#next').onclick=nextOpen;$('#run').onclick=runModel;
   $('#fill').onclick=()=>{for(const x of p.criteria)S.form[x.criterion_id]={value:x.value,rationale:x.rationale,evidence_turns:[...x.evidence_turns]};S.dirty=true;renderForm();};
   for(const el of document.querySelectorAll('.crit[data-code]')){
@@ -133,23 +133,23 @@ async function updateScore(){
 async function save(){
   const c=S.cur;if(!c)return;
   try{S.labels[c.id]=await api('/api/labels?name='+encodeURIComponent($('#dataset').value),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation_id:c.id,criteria:S.form,reviewed:true})});
-    S.dirty=false;renderList();renderForm();status('saved '+c.id);}catch(e){alert('Save failed: '+e.message);}
+    S.dirty=false;renderList();renderForm();status('сохранено: '+c.id);}catch(e){alert('Не удалось сохранить: '+e.message);}
 }
 function nextOpen(){
   const list=S.convs,i=list.findIndex(c=>c.id===S.cur?.id);
-  const n=[...list.slice(i+1),...list.slice(0,i)].find(c=>!S.labels[c.id]?.reviewed);if(n)select(n.id);else status('everything is reviewed');
+  const n=[...list.slice(i+1),...list.slice(0,i)].find(c=>!S.labels[c.id]?.reviewed);if(n)select(n.id);else status('все диалоги проверены');
 }
 async function runModel(){
-  const c=S.cur;const b=$('#run');b.disabled=true;b.textContent='Running… (can take a minute)';
+  const c=S.cur;const b=$('#run');b.disabled=true;b.textContent='Оценка… (может занять минуту)';
   try{S.preds[c.id]=await api(`/api/evaluate?name=${encodeURIComponent($('#dataset').value)}&id=${encodeURIComponent(c.id)}`,{method:'POST'});renderList();renderForm();}
-  catch(e){alert('Model failed: '+e.message);b.disabled=false;b.textContent='Run model on this chat';}
+  catch(e){alert('Ошибка модели: '+e.message);b.disabled=false;b.textContent='Оценить этот диалог моделью';}
 }
 $('#dataset').onchange=loadDataset;$('#preds').onchange=async()=>{await loadPreds();renderList();if(S.cur)select(S.cur.id);};
 $('#search').oninput=renderList;$('#lang').onchange=renderList;$('#onlyOpen').onchange=renderList;
 $('#list').onclick=e=>{const it=e.target.closest('.item');if(it)select(it.dataset.id);};
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();save();}});
 window.addEventListener('beforeunload',e=>{if(S.dirty){e.preventDefault();e.returnValue='';}});
-init().catch(e=>status('error: '+e.message));
+init().catch(e=>status('ошибка: '+e.message));
 </script>
 </body>
 </html>

@@ -23,6 +23,8 @@ DEFAULTS = {
     "num_predict": 3072,
     "timeout": 600,
     "api_key_env": "CQA_API_KEY",
+    "rationale_language": "ru",    # язык обоснований в results.json: ru / kk / en
+    "closure_check": True,         # отдельная проверка «Завершения» (точнее на DEV)
 }
 
 
@@ -41,4 +43,5 @@ def model_config(cfg: dict) -> ModelConfig:
     return ModelConfig(backend=cfg["backend"], base_url=cfg["base_url"], model=cfg["model"],
                        temperature=float(cfg["temperature"]), num_ctx=int(cfg["num_ctx"]),
                        num_predict=int(cfg["num_predict"]), timeout=int(cfg["timeout"]),
-                       api_key_env=cfg["api_key_env"])
+                       api_key_env=cfg["api_key_env"], rationale_language=cfg["rationale_language"],
+                       closure_check=bool(cfg["closure_check"]))
