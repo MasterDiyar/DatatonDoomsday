@@ -11,3 +11,10 @@ node_modules/
 # Keep imported organiser datasets out of the public repository.
 datasets/
 /examples/DEV.json
+
+# Fine-tuning outputs: adapters, merged weights, GGUF, virtualenv.
+training/out/
+*.gguf
+*.safetensors
+.venv/
+__pycache__/

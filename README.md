@@ -103,6 +103,36 @@ USD = (input_tokens × input_price + output_tokens × output_price) / 1 000 000
 
 Разрешение loopback действует только в локальном Node/SQLite-сервере. В опубликованном Worker разрешены публичные HTTPS-адреса. Локальные модели нужно установить и запустить отдельно; в архив не входят веса или скрытый облачный сервис.
 
+### Своя дообученная модель
+
+Конвейер для дообучения открытой модели (Qwen2.5-7B-Instruct, QLoRA на GPU ≥ 12 ГБ) описан в [`training/README.md`](training/README.md):
+
+1. метки учителя;
+2. ревью командой через апелляции (`scripts/export-labels.mjs`);
+3. синтетические диалоги (`scripts/synthesize-dialogues.mjs`);
+4. SFT-датасет с теми же промптами, что при оценке (`scripts/build-sft-dataset.mjs`, `buildModelMessages()`);
+5. обучение `training/train_lora.py`;
+6. GGUF и Ollama (`training/merge_and_export.py`, `training/Modelfile`);
+7. сравнение с базовой моделью через `scripts/benchmark.mjs`.
+
+Дополнительные параметры запроса к модели, например температура, задаются через `MODEL_EXTRA_BODY={"temperature":0.3}`.
+
+## Файлы результатов для организаторов
+
+```sh
+node --env-file-if-exists=.env scripts/export-hackathon.mjs --state datasets/final-dev.json --data datasets/dev.json --dataset dev --team "Team" --model-name "Model" --mode local
+node scripts/export-hackathon.mjs --validate-only results/prod/results.json --data datasets/prod.json --expect 10
+```
+
+Экспортёр создаёт `results/<dev|prod>/results.json` в формате 1.0:
+
+- коды критериев `contact, discovery, identification, consultation, empathy, dialogue, closure, critical`;
+- 1-based `evidence_turns`;
+- `final_score` с перераспределением N/A;
+- `status: "error"` для сбоев и `pending`.
+
+Валидатор проверяет полноту ID, дубликаты, допустимые значения и для `prod` — ровно 10 записей.
+
 ## Проверка точности
 
 В настройках доступны два режима:
@@ -216,7 +246,7 @@ node scripts/benchmark.mjs --results results.json --truth ground-truth.json --ou
 
 ## Проверки
 
-71 тест проверяют бизнес-логику, официальный чек-лист и применение изменений к новым транскриптам.
+83 теста проверяют бизнес-логику, официальный чек-лист и применение изменений к новым транскриптам.
 
 ```sh
 node --test tests/*.test.mjs
