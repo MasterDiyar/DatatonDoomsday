@@ -89,6 +89,20 @@ def cmd_check(args) -> int:
         print(f"FAIL: {e}")
         return 1
     print(f"OK: model answered in {time.time() - t0:.1f}s: {text.strip()[:80]}")
+    if m.backend == "ollama":
+        try:  # where is the loaded model? CPU-only means minutes per chat
+            with _opener(base).open(f"{base}/api/ps", timeout=10) as r:
+                loaded = json.loads(r.read().decode("utf-8")).get("models", [])
+            for x in loaded:
+                size, vram = x.get("size") or 0, x.get("size_vram") or 0
+                share = round(100 * vram / size) if size else 0
+                where = "GPU" if share >= 99 else (f"{share}% GPU / {100 - share}% CPU" if share else "CPU only")
+                print(f"{x.get('name')}: {where}, {size / 1e9:.1f} GB")
+                if share < 99:
+                    print("  WARNING: not fully on the GPU -> each chat will be slow. Check the NVIDIA driver, "
+                          "close other GPU programs, or lower num_ctx in config.json.")
+        except Exception:  # noqa: BLE001 - informational only
+            pass
     return 0
 
 

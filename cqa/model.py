@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import socket
@@ -43,12 +44,33 @@ def _opener(url: str):
     return urllib.request.build_opener()
 
 
-def _post(url: str, body: dict, headers: dict, timeout: int) -> dict:
+def _read_stream(resp, on_chunk) -> dict:
+    """Ollama streams one JSON object per line. Collect the content, report progress, return the
+    final object with the full content. A plain (non-streamed) JSON body also works."""
+    parts, last = [], {}
+    for raw in resp:
+        line = raw.decode("utf-8").strip()
+        if not line:
+            continue
+        obj = json.loads(line)
+        if obj.get("error"):
+            return obj
+        parts.append((obj.get("message") or {}).get("content", ""))
+        last = obj
+        if on_chunk:
+            on_chunk(len(parts))
+    last["message"] = {"role": "assistant", "content": "".join(parts)}
+    return last
+
+
+def _post(url: str, body: dict, headers: dict, timeout: int, on_chunk=None) -> dict:
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST",
                                  headers={"Content-Type": "application/json", **headers})
     try:
         with _opener(url).open(req, timeout=timeout) as resp:
+            if body.get("stream"):
+                return _read_stream(resp, on_chunk)
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", "replace")[:300]
@@ -70,28 +92,42 @@ def _post(url: str, body: dict, headers: dict, timeout: int) -> dict:
         raise ModelError(f"timeout after {timeout}s at {url}")
     except json.JSONDecodeError:
         raise ModelError(f"{url} returned a non-JSON response")
+    except (http.client.HTTPException, OSError) as e:
+        # The server accepted the request but dropped the connection mid-answer (ConnectionResetError,
+        # RemoteDisconnected, ...). With Ollama this usually means its runner crashed, e.g. out of GPU
+        # memory on a long chat. Not fatal: the next attempt reloads the model.
+        raise ModelError(f"connection dropped by {url} ({type(e).__name__}: {e}). The model server may have "
+                         f"crashed or run out of memory; see the Ollama log (%LOCALAPPDATA%\\Ollama\\server.log) "
+                         f"or try a smaller num_ctx in config.json")
 
 
-def chat(cfg: ModelConfig, messages: list[dict], schema: dict | None, temperature: float | None = None) -> tuple[str, dict]:
-    """Returns (assistant text, usage dict)."""
+def chat(cfg: ModelConfig, messages: list[dict], schema: dict | None, temperature: float | None = None,
+         on_chunk=None) -> tuple[str, dict]:
+    """Returns (assistant text, usage dict). on_chunk(n_tokens) is called while Ollama generates."""
     temp = cfg.temperature if temperature is None else temperature
     base = cfg.base_url.rstrip("/")
     if cfg.backend == "ollama":
         if base.endswith("/v1"):
             base = base[:-3]
         body = {
-            "model": cfg.model, "messages": messages, "stream": False,
+            # Streaming: the timeout applies between chunks, and progress can be shown while generating.
+            "model": cfg.model, "messages": messages, "stream": True,
             "options": {"temperature": temp, "num_ctx": cfg.num_ctx, "num_predict": cfg.num_predict,
                         "seed": cfg.seed},
         }
         if schema is not None:
             body["format"] = schema
-        out = _post(f"{base}/api/chat", body, {}, cfg.timeout)
+        out = _post(f"{base}/api/chat", body, {}, cfg.timeout, on_chunk)
         if out.get("error"):
             raise ModelError(f"Ollama error: {out['error']}", fatal="not found" in str(out["error"]))
         text = (out.get("message") or {}).get("content", "")
         usage = {"input_tokens": out.get("prompt_eval_count"), "output_tokens": out.get("eval_count"),
-                 "done_reason": out.get("done_reason")}
+                 "done_reason": out.get("done_reason"),
+                 "load_seconds": round((out.get("load_duration") or 0) / 1e9, 1),
+                 "prompt_seconds": round((out.get("prompt_eval_duration") or 0) / 1e9, 1),
+                 "generate_seconds": round((out.get("eval_duration") or 0) / 1e9, 1)}
+        if out.get("done_reason") == "length":
+            raise ModelError(f"answer cut off at num_predict={cfg.num_predict} tokens; raise num_predict in config.json")
         return text, usage
     if cfg.backend == "openai":
         key = os.environ.get(cfg.api_key_env, "")
