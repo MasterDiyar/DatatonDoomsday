@@ -109,7 +109,8 @@ def error_entry(conv_id: str, reason: str) -> dict:
     return {"conversation_id": conv_id, "status": "error", "criteria": [], "score": None, "error": reason}
 
 
-def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int = 2, log=None) -> tuple[dict, dict]:
+def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int = 2, log=None,
+             progress=None) -> tuple[dict, dict]:
     """Returns (results.json entry, details for debugging). ModelError(fatal) propagates."""
     if conv.error:
         return error_entry(conv.conversation_id, conv.error), {"error": conv.error}
@@ -126,7 +127,8 @@ def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int 
         for attempt in range(retries + 1):
             started = time.time()
             try:
-                text, usage = chat(cfg, msgs, schema, temperature=temp if attempt == 0 else max(temp, 0.3))
+                text, usage = chat(cfg, msgs, schema, temperature=temp if attempt == 0 else max(temp, 0.3),
+                                   on_chunk=progress)
                 parsed = parse_output(text, conv)
                 runs.append(parsed)
                 details["attempts"].append({"ok": True, "seconds": round(time.time() - started, 1), "usage": usage,
