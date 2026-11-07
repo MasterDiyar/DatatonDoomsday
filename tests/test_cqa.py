@@ -358,49 +358,81 @@ class Robustness(unittest.TestCase):
             self.assertTrue(any("Interrupted" in x for x in logs))
 
 
-class ClosureCheck(unittest.TestCase):
-    def conv(self, *turns):
-        rec = {"conversation_id": "z", "language": "RU", "channel": "agent chat",
+
+class FactCheck(unittest.TestCase):
+    """Second model call: facts with quotes; code only verifies quotes and applies the checklist formula."""
+
+    def conv(self, *turns, lang="RU"):
+        rec = {"conversation_id": "f", "language": lang, "channel": "agent chat",
                "transcript": [{"timestamp": "", "speaker": s, "text": t} for s, t in turns]}
         with tempfile.TemporaryDirectory() as d:
             return load_dataset(write_dataset(Path(d), [rec]))[0]
 
-    def run_check(self, conv, model_answer):
-        from cqa import closure
-        fake = lambda *a, **k: (json.dumps(model_answer), {})
-        with mock.patch.object(closure, "chat", fake):
-            return closure.check_closure(conv, ModelConfig())
+    def base(self, **over):
+        crit = {k: {"value": v, "rationale": "main", "evidence_turns": [1]} for k, v in GUIDE.items()}
+        for k, v in over.items():
+            crit[k]["value"] = v
+        return crit
 
-    def test_bare_goodbye_is_no_even_if_model_calls_it_a_summary(self):
+    def facts(self, **over):
+        f = {"greeting_quote": "", "greeting_in_client_language": True, "name_quote": "", "operator_questions": [],
+             "summary_or_offer_quote": "", "goodbye_quote": "", "ended_before_operator_could_close": False}
+        f.update(over)
+        return f
+
+    def test_contact_needs_verified_greeting_name_and_language(self):
+        from cqa.facts import apply
+        c = self.conv(("client", "Где тариф?"), ("bot", "Здравствуйте! Я бот."), ("operator", "Здравствуйте, я Руслан. Откройте «Кабинет»."))
+        ok = apply(self.base(contact=False), self.facts(greeting_quote="Здравствуйте", name_quote="я Руслан"), c)["contact"]
+        self.assertIs(ok["value"], True)
+        self.assertEqual(ok["evidence_turns"], [3])
+        no_name = apply(self.base(), self.facts(greeting_quote="Здравствуйте"), c)["contact"]
+        self.assertIs(no_name["value"], False)
+        invented = apply(self.base(), self.facts(greeting_quote="Здравствуйте", name_quote="меня зовут Алина"), c)["contact"]
+        self.assertIs(invented["value"], False)  # quote not in the first operator message
+        other_lang = apply(self.base(), self.facts(greeting_quote="Здравствуйте", name_quote="я Руслан",
+                                                   greeting_in_client_language=False), c)["contact"]
+        self.assertIs(other_lang["value"], False)
+
+    def test_discovery_from_verified_questions(self):
+        from cqa.facts import apply
+        c = self.conv(("client", "Где тариф?"), ("operator", "Здравствуйте, я Лера. Вы в приложении или в веб-версии?"),
+                      ("client", "В вебе"), ("operator", "Откройте «Кабинет»."))
+        q = {"turn": 2, "quote": "Вы в приложении или в веб-версии?", "already_known": False}
+        self.assertIs(apply(self.base(discovery=None), self.facts(operator_questions=[q]), c)["discovery"]["value"], True)
+        self.assertIs(apply(self.base(), self.facts(operator_questions=[{**q, "already_known": True}]), c)["discovery"]["value"], False)
+        fake = {"turn": 4, "quote": "Какая у вас валюта?", "already_known": False}  # not in the chat
+        self.assertIsNone(apply(self.base(discovery=True), self.facts(operator_questions=[fake]), c)["discovery"]["value"])
+        kept = apply(self.base(discovery=False), self.facts(), c)["discovery"]
+        self.assertEqual((kept["value"], kept["rationale"]), (False, "main"))  # no questions: main prompt decides No vs N/A
+
+    def test_closure(self):
+        from cqa.facts import apply
         c = self.conv(("client", "Где тариф?"), ("operator", "Здравствуйте, я Алина. В «Кабинете»."),
                       ("client", "Спасибо"), ("operator", "Пожалуйста. Хорошего вечера!"))
-        r = self.run_check(c, {"summary": "Пожалуйста. Хорошего вечера!", "offer": "", "goodbye": "Хорошего вечера"})
-        self.assertIs(r["value"], False)
+        bare = apply(self.base(), self.facts(summary_or_offer_quote="Пожалуйста. Хорошего вечера!", goodbye_quote="Хорошего вечера"), c)
+        self.assertIs(bare["closure"]["value"], False)  # a goodbye is not a summary
+        c2 = self.conv(("client", "Деньги не пришли"), ("operator", "Я передал вопрос специалистам, ответ придёт в этот чат. До свидания!"))
+        good = apply(self.base(), self.facts(summary_or_offer_quote="Я передал вопрос специалистам, ответ придёт в этот чат",
+                                             goodbye_quote="До свидания"), c2)
+        self.assertIs(good["closure"]["value"], True)
+        cut = apply(self.base(), self.facts(ended_before_operator_could_close=True), c)
+        self.assertIsNone(cut["closure"]["value"])
+        none = apply(self.base(), self.facts(), c2)
+        self.assertIs(none["closure"]["value"], False)
 
-    def test_summary_or_offer_plus_goodbye_is_yes(self):
-        c = self.conv(("client", "Где тариф?"), ("operator", "Я передал вопрос специалистам, ответ придёт в этот чат. До свидания!"))
-        r = self.run_check(c, {"summary": "Я передал вопрос специалистам, ответ придёт в этот чат", "offer": "", "goodbye": "До свидания"})
-        self.assertIs(r["value"], True)
-        c = self.conv(("client", "Где тариф?"), ("operator", "Если вопрос останется, напишите нам. До свидания!"))
-        self.assertIs(self.run_check(c, {})["value"], True)  # offer + goodbye found by rules alone
-
-    def test_invented_quote_is_ignored(self):
-        c = self.conv(("client", "Где тариф?"), ("operator", "Хорошего дня!"))
-        r = self.run_check(c, {"summary": "Вопрос решён, отчёт отправлен клиенту", "offer": "", "goodbye": ""})
-        self.assertIs(r["value"], False)
-
-    def test_disconnect_is_na_and_operator_close_is_no(self):
-        c = self.conv(("client", "Где форма?"), ("operator", "Здравствуйте. Я Илья. Форма на английском."),
-                      ("client", "Ок"), ("system", "Соединение с клиентом прервано."))
-        self.assertIsNone(self.run_check(c, {})["value"])
-        c = self.conv(("client", "Где форма?"), ("operator", "Тогда не знаю."), ("system", "Оператор закрыл чат."))
-        r = self.run_check(c, {})
-        self.assertIs(r["value"], False)
-        self.assertIn("закрыл чат", r["rationale"])
-        # the operator talking after the customer hung up does not count
-        c = self.conv(("client", "Понятно, спасибо."), ("operator", "Поручение передано трейдеру."),
-                      ("system", "Клиент завершил разговор."), ("operator", "Остались дополнительные вопросы?"))
-        self.assertIsNone(self.run_check(c, {})["value"])
+    def test_one_extra_call_and_fallback(self):
+        """Exactly one extra request per chat; if it fails, the main prompt's answers stay."""
+        fake = FakeOllama([(200, answer()), (200, "not json")])
+        try:
+            with tempfile.TemporaryDirectory() as d, mock.patch("cqa.runner.ROOT", Path(d)):
+                data = write_dataset(Path(d), [chat_record("c-1")])
+                out = Path(d) / "r.json"
+                self.assertEqual(run_dataset(str(data), str(out), SETTINGS, fake.cfg, log=lambda *a: None), 0)
+                self.assertEqual(len(fake.requests), 2)
+                self.assertEqual(read_json(out)["results"][0]["score"]["final_score"], 85.38)
+        finally:
+            fake.close()
 
     def test_prompt_is_russian_and_rationale_language_switches(self):
         self.assertIn("Оцени работу оператора", prompt.system_prompt())
