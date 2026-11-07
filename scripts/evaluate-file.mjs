@@ -3,6 +3,10 @@ import {dirname,resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {normalizeRecords,validateChecklist,evaluateRules,evaluateWithModel,scoreResults,parseExtraBody} from '../src/core.mjs';
 import {rawRecords} from '../src/hackathon-export.mjs';
+import {safeModelURL} from '../src/core.mjs';
+// Windows editors often save .env with a UTF-8 BOM, which Node keeps in the first variable name
+// (e.g. "\uFEFFALLOW_LOCAL_MODEL"). Recover such names instead of silently ignoring them.
+for(const [k,v] of Object.entries(process.env))if(k.startsWith('\uFEFF')&&process.env[k.slice(1)]===undefined)process.env[k.slice(1)]=v;
 const {values}=parseArgs({options:{data:{type:'string'},checklist:{type:'string'},out:{type:'string',default:'results.json'},engine:{type:'string',default:'model'},verification:{type:'string',default:'verified'},ids:{type:'string'},retries:{type:'string',default:'1'}}});
 if(!values.data||!values.checklist){console.error('Usage: node --env-file-if-exists=.env scripts/evaluate-file.mjs --data control.json --checklist official.json --out results.json [--engine rules] [--verification single] [--ids ids.txt] [--retries 1]');process.exit(1);}
 const json=async path=>JSON.parse(await readFile(resolve(path),'utf8'));
@@ -18,11 +22,23 @@ for(const [i,r] of raw.entries()){
   if(!id){console.error(`record #${i+1}: no conversation_id; it cannot be reported.`);continue;}
   if(seen.has(id.trim())){errors.push({conversationId:id,error:'Duplicate conversation_id in the dataset.'});console.error(`${id}: duplicate conversation_id`);continue;}
   seen.add(id.trim());
-  try{records.push(normalizeRecords([r])[0]);}catch(error){errors.push({conversationId:id,error:`Invalid record: ${error.message}`});console.error(`${id}: invalid record: ${error.message}`);}
+  try{records.push(normalizeRecords([r])[0]);continue;}catch(error){
+    // Text evaluation does not need the audio link: keep the conversation if only audio_url is unusable.
+    if(r.audio_url){try{records.push(normalizeRecords([{...r,audio_url:null}])[0]);console.warn(`${id}: audio_url ignored (${error.message}); transcript is evaluated.`);continue;}catch{}}
+    errors.push({conversationId:id,error:`Invalid record: ${error.message}`});console.error(`${id}: invalid record: ${error.message}`);
+  }
 }
 const checklist=validateChecklist(await json(values.checklist));
 if(!['model','rules'].includes(values.engine))throw new Error('engine must be model or rules');
 if(values.engine==='model'&&(!process.env.MODEL_API_KEY||!process.env.MODEL_NAME))throw new Error('Set MODEL_API_KEY and MODEL_NAME. There is no silent fallback.');
+if(values.engine==='model'){
+  // Check the model address once, with a specific explanation, instead of failing every conversation.
+  const base=(process.env.MODEL_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
+  const local=/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(base);
+  if(local&&process.env.ALLOW_LOCAL_MODEL!=='1')throw new Error(`MODEL_BASE_URL=${base} is a local address, but ALLOW_LOCAL_MODEL is not 1. Add the line ALLOW_LOCAL_MODEL=1 to .env (saved as UTF-8).`);
+  try{safeModelURL(`${base}/chat/completions`,process.env.ALLOW_LOCAL_MODEL==='1');}
+  catch(error){throw new Error(`MODEL_BASE_URL=${base} is not allowed: ${error.message} Use http://127.0.0.1:<port>/v1 with ALLOW_LOCAL_MODEL=1 for a local model, or a public https URL.`);}
+}
 const extraBody=parseExtraBody(process.env.MODEL_EXTRA_BODY);
 const timeoutMs=Math.max(30,Math.min(300,Number(process.env.MODEL_TIMEOUT_SECONDS)||180))*1000;
 const retries=values.engine==='model'?Math.max(0,Math.min(5,Number(values.retries)||0)):0;
