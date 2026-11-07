@@ -145,34 +145,6 @@ def cmd_validate(args) -> int:
     return 1 if problems else 0
 
 
-def cmd_apply_rules(args) -> int:
-    """Применить правила (контакт, выявление потребности) к уже готовому results.json без запуска модели."""
-    from cqa import rules
-    from cqa.evaluate import to_entry
-    convs = {c.conversation_id: c for c in load_dataset(args.data)}
-    data = read_json(args.results)
-    changed = 0
-    for i, r in enumerate(data.get("results", [])):
-        conv = convs.get(r.get("conversation_id"))
-        if r.get("status") != "ok" or conv is None or conv.error:
-            continue
-        crit = {c["criterion_id"]: {k: c[k] for k in ("value", "rationale", "evidence_turns")} for c in r["criteria"]}
-        before = json.dumps(crit, ensure_ascii=False)
-        greeting = rules.contact(conv)
-        if greeting is not None:
-            crit["contact"] = greeting
-        crit["discovery"] = rules.gate_discovery(crit["discovery"], conv)
-        if json.dumps(crit, ensure_ascii=False) != before:
-            changed += 1
-        data["results"][i] = to_entry(r["conversation_id"], crit)
-    write_json(args.out or args.results, data)
-    problems = validate_file(data, expect_ids=list(convs))
-    print(f"{changed} chats changed; written to {args.out or args.results}")
-    for p in problems:
-        print("INVALID:", p)
-    return 1 if problems else 0
-
-
 def cmd_labels_from_results(args) -> int:
     convs = {c.conversation_id: len(c.turns) for c in load_dataset(args.data) if not c.error}
     scenarios = read_json(args.scenarios) if args.scenarios else None
@@ -261,12 +233,6 @@ def main(argv=None) -> int:
     p = sub.add_parser("serve", help="local review page")
     p.add_argument("--port", type=int, default=8000)
     p.set_defaults(fn=lambda a: __import__("cqa.server", fromlist=["serve"]).serve(a.port) or 0)
-
-    p = sub.add_parser("apply-rules", help="apply the contact/discovery rules to an existing results.json")
-    p.add_argument("results")
-    p.add_argument("--data", required=True)
-    p.add_argument("--out", help="write here instead of overwriting")
-    p.set_defaults(fn=cmd_apply_rules)
 
     p = sub.add_parser("labels-from-results", help="import model answers as unreviewed labels")
     p.add_argument("results")

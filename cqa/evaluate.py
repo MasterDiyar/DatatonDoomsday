@@ -7,8 +7,7 @@ import time
 from collections import Counter
 
 from . import prompt
-from .closure import check_closure
-from . import rules
+from . import facts as fact_check
 from .checklist import BY_CODE, CODES, CRITERIA
 from .data import Conversation
 from .model import ModelConfig, ModelError, chat
@@ -148,18 +147,13 @@ def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int 
     if not runs:
         return error_entry(conv.conversation_id, last_error or "model failed"), details
     final = _majority(runs)
-    # Факты, которые код проверяет надёжнее модели (см. cqa/rules.py).
-    greeting = rules.contact(conv)
-    if greeting is not None:
-        details["contact_rule"] = {"main_model": final["contact"]["value"], "rule": greeting["value"]}
-        final["contact"] = greeting
-    gated = rules.gate_discovery(final["discovery"], conv)
-    if gated is not final["discovery"]:
-        details["discovery_rule"] = {"main_model": final["discovery"]["value"], "rule": gated["value"]}
-        final["discovery"] = gated
-    if cfg.closure_check:
-        closing = check_closure(conv, cfg)  # ModelError(fatal) propagates like the main call
-        if closing is not None:
-            details["closure_check"] = {"main_model": final["closure"]["value"], "checked": closing["value"]}
-            final["closure"] = closing
+    if cfg.fact_check:
+        # Второй короткий вызов: факты с цитатами для 01, 02, 07 (см. cqa/facts.py).
+        found = fact_check.ask(conv, cfg)  # ModelError(fatal) propagates like the main call
+        if found is not None:
+            checked = fact_check.apply(final, found, conv)
+            details["fact_check"] = {"facts": found, "changed": {c: [final[c]["value"], checked[c]["value"]]
+                                                                for c in ("contact", "discovery", "closure")
+                                                                if final[c]["value"] != checked[c]["value"]}}
+            final = checked
     return to_entry(conv.conversation_id, final), details
