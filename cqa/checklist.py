@@ -32,18 +32,25 @@ CRITERIA: tuple[Criterion, ...] = (
     ),
     Criterion(
         "discovery", "02", "Identifying the Need", 15, YES_NO_NA, None,
-        "YES/NO/N/A. Yes: the operator took into account known details and clarified what was missing "
-        "before answering. No: essential information was missing and the operator answered without "
-        "clarifying it, or ignored details the customer had already given. N/A: there was sufficient data "
-        "for an answer from the very beginning (then it is N/A even if the operator asked nothing).",
+        "YES/NO/N/A. Decide in this order. Step 1: read everything the customer wrote BEFORE the operator's "
+        "first reply, including what they told the bot. If that was already enough to answer (the question is "
+        "clear and nothing essential is missing), the value is null (N/A) - even if the operator answered "
+        "directly and asked nothing. Most clear how-to questions are N/A. Step 2: only if essential information "
+        "WAS missing (vague request like 'it doesn't work', unknown security/order/currency/app vs web): "
+        "true if the operator asked a targeted question about it before answering; false if the operator "
+        "answered or guessed without asking. Also false if the operator asked again for something the customer "
+        "had already said (e.g. 'which site?' after the customer named the site).",
     ),
     Criterion(
         "identification", "03", "Identification", 20, YES_NO_NA, None,
-        "YES/NO/N/A. Yes: an identity check was CONFIRMED before disclosing the customer's data or "
-        "performing a secure action (a system event confirming identification counts; only asking the "
-        "customer to verify does not). No: identification was required but was not confirmed before the "
-        "data/action, or not confirmed during the chat at all. N/A: the request did not require "
-        "identification (e.g. a general tariff question without personal data or secure actions).",
+        "YES/NO/N/A. Step 1: did the operator disclose THIS customer's account data (balance, positions, "
+        "payments, restrictions, order status, personal data) or perform/start an account action? If not - "
+        "e.g. where to find a menu, report, tariff, form or login page, how exchanges differ - the value is "
+        "null (N/A). Never use false for a general question just because no check happened. Step 2: if yes: "
+        "true when identity was CONFIRMED before that disclosure/action (a SYSTEM event like 'identity "
+        "confirmed', or the operator confirming a passed check/SMS code); false when account data was given or "
+        "the action done without a confirmed check (e.g. 'I can see a restriction on your account' with no "
+        "verification). Merely asking the customer to verify is not a confirmation.",
     ),
     Criterion(
         "consultation", "04", "Correct and Complete Consultation", 20, (0, 5, 10, 15, 20, None), 20,
@@ -70,17 +77,24 @@ CRITERIA: tuple[Criterion, ...] = (
     ),
     Criterion(
         "closure", "07", "Closing", 5, YES_NO_NA, None,
-        "YES/NO/N/A. Yes: the operator (summarized the conversation OR offered further assistance) AND said "
-        "goodbye. No: e.g. the operator closed the chat without saying goodbye. N/A: the chat disconnected "
-        "before it could be properly completed (not when the operator closed it without a goodbye).",
+        "YES/NO/N/A. Look at the operator's last messages. true ONLY if BOTH: (a) an explicit summary of the "
+        "outcome/next step ('your request has been passed on, we will reply here', 'check the bank fee before "
+        "transferring') OR an explicit offer of further help ('anything else?', 'if the question remains, "
+        "write to us'), AND (b) a goodbye. A bare goodbye or thanks+goodbye is false: 'Пожалуйста. Хорошего "
+        "дня!', 'Рад помочь. До свидания!', 'Сау болыңыз!', 'Оқасы жоқ. Сау болыңыз!', 'You're welcome. Have a "
+        "good day!', 'Thanks for reaching out, goodbye!'. Also false: the operator closed the chat or stopped "
+        "answering without a goodbye. null (N/A) only when a SYSTEM event shows the customer left, the "
+        "connection was lost or the customer ended the call before the operator could close.",
     ),
     Criterion(
         "critical", "08", "Severe Errors (Critical Failures)", 0, YES_NO, None,
         "YES/NO, no points. Yes (true) if ANY of: insulting behavior toward the customer; offering paid "
         "services bypassing the company (e.g. suggesting the customer transfer money directly to the "
         "operator for investment, or asking for the customer's personal phone number to provide paid "
-        "consultations privately; the mere suggestion is enough, consent or payment is not required); "
-        "disclosing confidential information. No (false): none of the three was detected.",
+        "consultations privately - in any language, e.g. 'скиньте деньги мне на карту', 'дайте личный номер, "
+        "за плату объясню', 'жеке нөміріңізді қалдырсаңыз ... ақылы түрде айтып беремін'; the mere suggestion "
+        "is enough, consent or payment is not required); disclosing confidential information. Check every "
+        "operator message for these. No (false): none of the three was detected.",
     ),
 )
 
