@@ -130,13 +130,51 @@ textarea{min-height:58px;resize:vertical}
 .empty{padding:40px 20px;text-align:center;color:var(--muted)}
 .empty b{display:block;color:var(--text);font-size:16px;margin-bottom:6px}
 
-@media (max-width:1180px){body{display:block;height:auto;overflow:auto}.layout{grid-template-columns:250px minmax(0,1fr)}.verdict{grid-column:1/-1}.pane{max-height:none}.scroll{max-height:70vh}}
-@media (max-width:760px){.layout{grid-template-columns:1fr;padding:12px}.progress{margin-left:0}.msg{max-width:92%}select,input[type=search]{min-width:0;width:100%}}
+/* Tabs */
+.tabs{display:flex;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:3px}
+.tabs button{border:0;background:none;padding:6px 14px;border-radius:9px;font-weight:600;color:var(--muted)}
+.tabs button[aria-selected=true]{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.view[hidden]{display:none!important}
+
+/* Results: overview strip */
+.results-wrap{display:grid;grid-template-rows:auto minmax(0,1fr);gap:16px;padding:16px 20px;min-height:0}
+.overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,3fr);gap:12px;align-items:stretch}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px}
+.kpi span{display:block;font-size:12px;color:var(--muted)}
+.kpi>b{font-size:28px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.2}
+.kpi>b.good{color:var(--good)}.kpi>b.mid{color:var(--warn)}.kpi>b.bad{color:var(--bad)}
+.bycrit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 18px;margin-top:6px}
+.bycrit .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;font-size:12.5px;color:var(--muted);align-items:baseline}
+.bycrit .row b{color:var(--text);font-weight:600;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bycrit .meter{grid-column:1/-1;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+.bycrit .meter i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.results{display:grid;grid-template-columns:330px minmax(0,1fr) minmax(0,1fr);gap:16px;min-height:0}
+
+/* Criterion dots in the list */
+.dots{display:flex;gap:3px;margin-top:4px}
+.dots i{width:9px;height:9px;border-radius:3px;background:var(--line)}
+.dots i.y{background:var(--good)}.dots i.n{background:var(--bad)}.dots i.p{background:var(--warn)}.dots i.na{background:var(--line)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* Read-only verdict */
+.rcrit{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.rcrit:last-child{border-bottom:0}
+.badge{grid-row:span 2;align-self:start;min-width:64px;text-align:center;font-weight:700;font-size:13px;border-radius:10px;padding:6px 8px}
+.badge.y{background:var(--good-soft);color:var(--good)}.badge.n{background:var(--bad-soft);color:var(--bad)}
+.badge.p{background:var(--warn-soft);color:var(--warn)}.badge.na{background:var(--panel-2);color:var(--muted)}
+.rcrit .t{font-weight:600}.rcrit .t small{font-weight:400;color:var(--muted);margin-left:6px}
+.rcrit .why{font-size:14px;color:var(--muted)}
+.result-actions{display:flex;justify-content:flex-end;padding:10px 16px;border-top:1px solid var(--line)}
+
+@media (max-width:1180px){body{display:block;height:auto;overflow:auto}.overview{grid-template-columns:repeat(2,minmax(0,1fr))}.overview .kpi:last-child{grid-column:1/-1}.results{grid-template-columns:1fr}.results .pane .scroll{max-height:70vh}.layout{grid-template-columns:250px minmax(0,1fr)}.verdict{grid-column:1/-1}.pane{max-height:none}.scroll{max-height:70vh}}
+@media (max-width:760px){.layout{grid-template-columns:1fr;padding:12px}.results-wrap{padding:12px}.bycrit{grid-template-columns:1fr}.tabs{order:3}.progress{margin-left:0}.msg{max-width:92%}select,input[type=search]{min-width:0;width:100%}}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="brand"><i>✓</i>Контроль качества чатов</div>
+  <div class="tabs" role="tablist"><button role="tab" data-view="results" aria-selected="true">Результаты</button><button role="tab" data-view="review" aria-selected="false">Проверка</button></div>
   <div class="pickers">
     <label class="field"><span>Набор диалогов</span><select id="dataset"></select></label>
     <label class="field"><span>Ответы модели</span><select id="preds"></select></label>
@@ -144,7 +182,30 @@ textarea{min-height:58px;resize:vertical}
   <div class="progress"><div class="bar" aria-hidden="true"><span id="bar" style="width:0"></span></div><span id="progress">—</span></div>
 </header>
 
-<main class="layout">
+<main class="view results-wrap" id="resultsView">
+  <div class="overview" id="overview"></div>
+  <div class="results">
+    <aside class="pane">
+      <div class="pane-head">
+        <input type="search" id="rsearch" placeholder="Поиск по номеру диалога" aria-label="Поиск по номеру диалога" style="width:100%">
+        <div class="filters" id="rfilters" role="group" aria-label="Фильтр"></div>
+        <div class="legend"><span><i style="background:var(--good)"></i>выполнено</span><span><i style="background:var(--warn)"></i>частично</span><span><i style="background:var(--bad)"></i>не выполнено</span><span><i style="background:var(--line)"></i>N/A</span></div>
+      </div>
+      <div class="scroll" id="rlist"></div>
+    </aside>
+    <section class="pane">
+      <div class="pane-head" id="rsummary"><h2 style="margin:0;font-size:17px">Выберите диалог</h2></div>
+      <div class="scroll" id="rverdict" style="padding:4px 16px"></div>
+      <div class="result-actions"><button class="btn" id="toReview">✎ Исправить оценку</button></div>
+    </section>
+    <section class="pane">
+      <div class="pane-head chat-head" id="rchatHead"><h2>Диалог</h2></div>
+      <div class="scroll" id="rchat"></div>
+    </section>
+  </div>
+</main>
+
+<main class="view layout" id="reviewView" hidden>
   <aside class="pane">
     <div class="pane-head">
       <input type="search" id="search" placeholder="Поиск по номеру диалога" aria-label="Поиск по номеру диалога" style="width:100%">
@@ -217,6 +278,7 @@ async function loadDataset() {
   $('#langs').innerHTML = ['', ...langs].map(l => `<button class="chip" data-lang="${l}" aria-pressed="${S.lang === l}">${l || 'Все'}</button>`).join('');
   renderList();
   if (S.convs.length) select(S.convs[0].id, true);
+  renderResults();
 }
 async function loadPreds() { const f = $('#preds').value; remember(); S.preds = f ? await api('/api/predictions?file=' + encodeURIComponent(f)) : {}; }
 
@@ -351,7 +413,7 @@ $('#next').onclick = nextOpen;
 $('#run').onclick = runModel;
 $('#reset').onclick = () => { const pc = predCriteria(S.cur.id); for (const [k, x] of Object.entries(pc)) S.form[k] = {value: x.value, rationale: x.rationale, evidence_turns: [...x.evidence_turns]}; changed(); renderForm(); };
 $('#dataset').onchange = loadDataset;
-$('#preds').onchange = async () => { await loadPreds(); renderList(); if (S.cur) select(S.cur.id, true); };
+$('#preds').onchange = async () => { await loadPreds(); renderList(); if (S.cur) select(S.cur.id, true); S.rcur = null; renderResults(); };
 $('#search').oninput = renderList;
 $('#onlyOpen').onchange = renderList;
 $('#langs').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; S.lang = b.dataset.lang; document.querySelectorAll('#langs .chip').forEach(x => x.setAttribute('aria-pressed', x === b)); renderList(); };
@@ -360,11 +422,117 @@ $('#chat').onclick = () => highlight([], false);
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
   if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && S.view === 'results') {
+    const list = rVisible(), i = list.findIndex(r => r.id === S.rcur), n = list[i + (e.key === 'ArrowDown' ? 1 : -1)];
+    if (n) { e.preventDefault(); showResult(n.id); document.querySelector('#rlist .item.active')?.scrollIntoView({block: 'nearest'}); }
+    return;
+  }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     const list = visible(), i = list.findIndex(c => c.id === S.cur?.id), n = list[i + (e.key === 'ArrowDown' ? 1 : -1)];
     if (n) { e.preventDefault(); select(n.id); }
   }
 });
+
+/* ---------- Результаты (только просмотр) ---------- */
+S.view = 'results'; S.rcur = null; S.rfilter = '';
+const valueClass = (code, v) => v === null ? 'na' : code === 'critical' ? (v ? 'n' : 'y') : v === true ? 'y' : v === false ? 'n' : (v === 0 ? 'n' : (v === 20 || v === 10) ? 'y' : 'p');
+const valueText = (code, v) => v === null ? 'N/A' : code === 'critical' ? (v ? 'Есть' : 'Нет') : v === true ? 'Да' : v === false ? 'Нет' : `${v} из ${code === 'consultation' ? 20 : 10}`;
+const SHORT = {contact:'Контакт', discovery:'Потребность', identification:'Идентификация', consultation:'Консультация', empathy:'Эмпатия', dialogue:'Ведение диалога', closure:'Завершение', critical:'Грубые ошибки'};
+function resultRows() {
+  const ids = S.convs.length ? S.convs.map(c => c.id) : Object.keys(S.preds);
+  return ids.map(id => ({id, conv: S.convs.find(c => c.id === id), p: S.preds[id]})).filter(r => r.p);
+}
+function renderOverview() {
+  const rows = resultRows(), ok = rows.filter(r => r.p.status === 'ok');
+  if (!rows.length) { $('#overview').innerHTML = '<div class="kpi" style="grid-column:1/-1"><span>Нет результатов</span>Выберите файл с ответами модели вверху страницы (например <b>results/dev/results.json</b>). Файл создаёт команда <code>python run.py evaluate</code>.</div>'; return; }
+  const scores = ok.map(r => r.p.score.final_score).filter(x => x != null);
+  const avg = scores.length ? Math.round(100 * scores.reduce((a, b) => a + b, 0) / scores.length) / 100 : null;
+  const crit = ok.filter(r => r.p.score.critical_flag).length, err = rows.length - ok.length;
+  const per = S.checklist.map(k => {
+    const vals = ok.map(r => r.p.criteria.find(c => c.criterion_id === k.code)?.value).filter(v => v !== undefined && v !== null);
+    let share = null, text = '—';
+    if (vals.length) {
+      if (k.code === 'critical') { share = vals.filter(v => v === false).length / vals.length; text = `${vals.filter(v => v).length} с ошибкой`; }
+      else if (typeof vals[0] === 'boolean') { share = vals.filter(v => v).length / vals.length; text = `${Math.round(100 * share)}% «Да»`; }
+      else { const mx = k.code === 'consultation' ? 20 : 10; share = vals.reduce((a, b) => a + b, 0) / vals.length / mx; text = `${Math.round(10 * share * mx) / 10} из ${mx}`; }
+    }
+    return `<div class="row"><span>${k.number} ${SHORT[k.code] || esc(k.title)}</span><b>${text}</b><div class="meter"><i style="width:${share == null ? 0 : Math.round(100 * share)}%"></i></div></div>`;
+  }).join('');
+  $('#overview').innerHTML = `
+    <div class="kpi"><span>Диалогов</span><b>${rows.length}</b></div>
+    <div class="kpi"><span>Средний балл</span><b class="${tone(avg)}">${avg ?? '—'}</b></div>
+    <div class="kpi"><span>С грубыми ошибками</span><b class="${crit ? 'bad' : ''}">${crit}</b></div>
+    <div class="kpi"><span>Не удалось оценить</span><b class="${err ? 'bad' : ''}">${err}</b></div>
+    <div class="kpi"><span>По критериям</span><div class="bycrit">${per}</div></div>`;
+  const langs = [...new Set(rows.map(r => r.conv?.language).filter(Boolean))];
+  const opts = [['', 'Все'], ...langs.map(l => [l, l]), ['critical', 'Грубые ошибки'], ['low', 'Балл ниже 60']];
+  $('#rfilters').innerHTML = opts.map(([v, t]) => `<button class="chip" data-f="${v}" aria-pressed="${S.rfilter === v}">${t}</button>`).join('');
+}
+function rVisible() {
+  const q = $('#rsearch').value.trim().toLowerCase(), f = S.rfilter;
+  return resultRows().filter(r => (!q || r.id.toLowerCase().includes(q)) && (!f
+    || (f === 'critical' && r.p.score?.critical_flag) || (f === 'low' && r.p.status === 'ok' && (r.p.score.final_score ?? 100) < 60)
+    || r.conv?.language === f));
+}
+function renderResultList() {
+  const html = rVisible().map(r => {
+    const ok = r.p.status === 'ok', s = ok ? r.p.score.final_score : null;
+    const dots = ok ? `<div class="dots">${r.p.criteria.map(c => `<i class="${valueClass(c.criterion_id, c.value)}" title="${esc(SHORT[c.criterion_id])}: ${valueText(c.criterion_id, c.value)}"></i>`).join('')}</div>` : '';
+    return `<button class="item ${S.rcur === r.id ? 'active' : ''}" data-id="${esc(r.id)}"><span class="who"><div class="id">${esc(r.id)}</div>
+      <div class="meta">${esc(r.conv?.language || '')}${r.conv ? ' · ' + (r.conv.channel === 'voice call' ? 'звонок' : 'чат') : ''}${ok && r.p.score.critical_flag ? ' · <span class="flag">грубая ошибка</span>' : ''}${ok ? '' : ' · <span class="flag">не оценён</span>'}</div>${dots}</span>
+      <span class="pill ${ok ? tone(s) : 'bad'}">${ok ? (s ?? '—') : 'ошибка'}</span></button>`;
+  }).join('');
+  $('#rlist').innerHTML = html || '<div class="empty">Ничего не найдено</div>';
+}
+function rHighlight(turns) {
+  document.querySelectorAll('#rchat .msg.hl').forEach(e => e.classList.remove('hl'));
+  turns.forEach(n => document.getElementById('r' + n)?.classList.add('hl'));
+  if (turns.length) document.getElementById('r' + turns[0])?.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+function showResult(id) {
+  S.rcur = id; renderResultList();
+  const p = S.preds[id], conv = S.convs.find(c => c.id === id);
+  const ok = p.status === 'ok', s = ok ? p.score.final_score : null;
+  $('#rsummary').innerHTML = `<div class="scores" style="grid-template-columns:1fr">
+      <div class="score"><span>${esc(id)} · итоговый балл</span><b class="${ok ? tone(s) : 'bad'}">${ok ? (s ?? 'не рассчитан') : 'не оценён'}</b></div></div>
+    ${ok && p.score.critical_flag ? '<div class="banner">⚠ Грубая ошибка оператора</div>' : ''}
+    ${ok ? '' : `<div class="banner">Модель не смогла оценить диалог: ${esc(p.error)}</div>`}`;
+  const byCode = Object.fromEntries((p.criteria || []).map(c => [c.criterion_id, c]));
+  $('#rverdict').innerHTML = ok ? SECTIONS.map(([title, codes]) => `<div class="section" style="padding:10px 0 0"><h3>${title}</h3>${codes.map(code => {
+    const c = byCode[code], k = S.checklist.find(x => x.code === code); if (!c || !k) return '';
+    return `<div class="rcrit"><span class="badge ${valueClass(code, c.value)}">${valueText(code, c.value)}</span>
+      <div class="t">${k.number} ${esc(k.title)}<small>${k.weight ? 'вес ' + k.weight : 'без баллов'}</small></div>
+      <div class="why">${esc(c.rationale)}${c.evidence_turns.length && conv ? turnChips(c.evidence_turns) : ''}</div></div>`;
+  }).join('')}</div>`).join('') : '';
+  $('#rchatHead').innerHTML = conv ? `<h2>Диалог</h2><span class="meta">${esc(conv.language)} · ${conv.channel === 'voice call' ? 'звонок' : 'чат'} · реплик: ${conv.turns.length}</span>` : '<h2>Диалог</h2>';
+  $('#rchat').innerHTML = conv ? '<div class="messages">' + conv.turns.map(t => {
+    const role = WHO[t.speaker] ? t.speaker : 'OTHER';
+    return `<div class="msg ${role}" id="r${t.n}"><div class="label"><span class="num">[${t.n}]</span><b>${esc(WHO[t.speaker] || t.speaker)}</b><span>${esc(fmtTime(t.ts))}</span></div><div class="bubble">${esc(t.text)}</div></div>`;
+  }).join('') + '</div>' : '<div class="empty">Текст диалога не найден: выберите вверху набор диалогов, к которому относятся эти результаты.</div>';
+  $('#toReview').disabled = !conv;
+}
+function renderResults() {
+  renderOverview(); renderResultList();
+  const rows = rVisible();
+  if (rows.length && !rows.some(r => r.id === S.rcur)) showResult(rows[0].id);
+  else if (S.rcur && S.preds[S.rcur]) showResult(S.rcur);
+  else { $('#rverdict').innerHTML = ''; $('#rchat').innerHTML = ''; }
+}
+function setView(v) {
+  S.view = v;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === v));
+  $('#resultsView').hidden = v !== 'results'; $('#reviewView').hidden = v !== 'review';
+  $('.progress').style.visibility = v === 'review' ? 'visible' : 'hidden';
+  try { localStorage.setItem('cqa-tab', v); } catch {}
+}
+document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.view); };
+$('#rlist').onclick = e => { const it = e.target.closest('.item'); if (it) showResult(it.dataset.id); };
+$('#rverdict').onclick = e => { const t = e.target.closest('.turn'); if (t) rHighlight([+t.dataset.turn]); };
+$('#rsearch').oninput = renderResultList;
+$('#rfilters').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; S.rfilter = b.dataset.f; document.querySelectorAll('#rfilters .chip').forEach(x => x.setAttribute('aria-pressed', x === b)); renderResultList(); };
+$('#toReview').onclick = () => { if (!S.rcur) return; setView('review'); select(S.rcur); };
+try { const t = localStorage.getItem('cqa-tab'); if (t === 'review') setView('review'); else setView('results'); } catch { setView('results'); }
+
 window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
 init().catch(e => { $('#chat').innerHTML = `<div class="empty"><b>Не удалось загрузить</b>${esc(e.message)}</div>`; });
 </script>
