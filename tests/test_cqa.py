@@ -309,3 +309,50 @@ class ReviewServer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Robustness(unittest.TestCase):
+    def test_dropped_connection_is_retried(self):
+        import socket
+        calls = {"n": 0}
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                calls["n"] += 1
+                if calls["n"] == 1:  # crash mid-request: close without any HTTP response
+                    self.connection.shutdown(socket.SHUT_RDWR)
+                    return
+                data = json.dumps({"message": {"content": answer()}, "done": True}).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            with tempfile.TemporaryDirectory() as d, mock.patch("cqa.runner.ROOT", Path(d)):
+                data = write_dataset(Path(d), [chat_record("c-1")])
+                out = Path(d) / "r.json"
+                cfg = ModelConfig(base_url=f"http://127.0.0.1:{httpd.server_port}", timeout=10)
+                logs = []
+                self.assertEqual(run_dataset(str(data), str(out), SETTINGS, cfg, log=logs.append), 0)
+                self.assertEqual(read_json(out)["results"][0]["status"], "ok")
+                self.assertTrue(any("connection dropped" in x for x in logs))
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+    def test_ctrl_c_saves_and_exits_cleanly(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch("cqa.runner.ROOT", Path(d)), \
+                mock.patch("cqa.runner.evaluate", side_effect=KeyboardInterrupt):
+            data = write_dataset(Path(d), [chat_record("c-1"), chat_record("c-2")])
+            out = Path(d) / "r.json"
+            logs = []
+            self.assertEqual(run_dataset(str(data), str(out), SETTINGS, ModelConfig(), log=logs.append), 130)
+            self.assertEqual(len(read_json(out)["results"]), 2)  # file stays complete and valid
+            self.assertTrue(any("Interrupted" in x for x in logs))

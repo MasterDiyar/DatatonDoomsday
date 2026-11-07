@@ -142,7 +142,7 @@ def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int 
                 last_error = f"invalid model answer: {e}"
             details["attempts"].append({"ok": False, "seconds": round(time.time() - started, 1), "error": last_error})
             if log:
-                log(f"  retry ({last_error})")
+                log(f"\n  attempt failed: {last_error}" + ("; retrying" if attempt < retries else ""))
     if not runs:
         return error_entry(conv.conversation_id, last_error or "model failed"), details
     return to_entry(conv.conversation_id, _majority(runs)), details

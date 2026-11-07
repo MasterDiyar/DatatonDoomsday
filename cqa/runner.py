@@ -66,13 +66,20 @@ def run_dataset(data_path: str, out_path: str, settings: dict, mcfg: ModelConfig
                 state["last"] = now
                 live(f"\r[{i}/{len(todo)}] {conv.conversation_id}: generating... {n} tokens, {now - t0:.0f}s   ")
 
-        live(f"[{i}/{len(todo)}] {conv.conversation_id}: waiting for the model...")
+        size = sum(len(t.text) for t in conv.turns)
+        live(f"[{i}/{len(todo)}] {conv.conversation_id}: {len(conv.turns)} turns, {size} chars - waiting for the model...")
         try:
             entry, info = evaluate(conv, mcfg, votes=votes, log=log, progress=progress)
         except ModelError as e:  # fatal: wrong URL / model name / key - stop instead of failing every chat
             live("\n")
             fatal = str(e)
             break
+        except KeyboardInterrupt:
+            live("\n")
+            save()
+            log(f"Interrupted (Ctrl+C). {done} chats finished this run are saved in {out}. "
+                "Run the same command again to continue from where it stopped.")
+            return 130
         entries[conv.conversation_id] = entry
         with open(details_path, "a", encoding="utf-8") as f:
             f.write(json.dumps({"conversation_id": conv.conversation_id, "model": mcfg.model, **info},

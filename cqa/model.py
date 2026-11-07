@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import socket
@@ -91,6 +92,13 @@ def _post(url: str, body: dict, headers: dict, timeout: int, on_chunk=None) -> d
         raise ModelError(f"timeout after {timeout}s at {url}")
     except json.JSONDecodeError:
         raise ModelError(f"{url} returned a non-JSON response")
+    except (http.client.HTTPException, OSError) as e:
+        # The server accepted the request but dropped the connection mid-answer (ConnectionResetError,
+        # RemoteDisconnected, ...). With Ollama this usually means its runner crashed, e.g. out of GPU
+        # memory on a long chat. Not fatal: the next attempt reloads the model.
+        raise ModelError(f"connection dropped by {url} ({type(e).__name__}: {e}). The model server may have "
+                         f"crashed or run out of memory; see the Ollama log (%LOCALAPPDATA%\\Ollama\\server.log) "
+                         f"or try a smaller num_ctx in config.json")
 
 
 def chat(cfg: ModelConfig, messages: list[dict], schema: dict | None, temperature: float | None = None,
