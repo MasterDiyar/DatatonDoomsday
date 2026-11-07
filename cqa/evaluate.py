@@ -8,6 +8,7 @@ from collections import Counter
 
 from . import prompt
 from .closure import check_closure
+from . import rules
 from .checklist import BY_CODE, CODES, CRITERIA
 from .data import Conversation
 from .model import ModelConfig, ModelError, chat
@@ -147,6 +148,15 @@ def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int 
     if not runs:
         return error_entry(conv.conversation_id, last_error or "model failed"), details
     final = _majority(runs)
+    # Факты, которые код проверяет надёжнее модели (см. cqa/rules.py).
+    greeting = rules.contact(conv)
+    if greeting is not None:
+        details["contact_rule"] = {"main_model": final["contact"]["value"], "rule": greeting["value"]}
+        final["contact"] = greeting
+    gated = rules.gate_discovery(final["discovery"], conv)
+    if gated is not final["discovery"]:
+        details["discovery_rule"] = {"main_model": final["discovery"]["value"], "rule": gated["value"]}
+        final["discovery"] = gated
     if cfg.closure_check:
         closing = check_closure(conv, cfg)  # ModelError(fatal) propagates like the main call
         if closing is not None:

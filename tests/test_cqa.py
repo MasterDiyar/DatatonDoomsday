@@ -406,3 +406,43 @@ class ClosureCheck(unittest.TestCase):
         self.assertIn("Оцени работу оператора", prompt.system_prompt())
         self.assertIn("на русском языке", prompt.system_prompt())
         self.assertIn("на казахском языке", prompt.system_prompt("kk"))
+
+
+class FactRules(unittest.TestCase):
+    def conv(self, lang, *turns):
+        rec = {"conversation_id": "r", "language": lang, "channel": "agent chat",
+               "transcript": [{"timestamp": "", "speaker": s, "text": t} for s, t in turns]}
+        with tempfile.TemporaryDirectory() as d:
+            return load_dataset(write_dataset(Path(d), [rec]))[0]
+
+    def test_contact(self):
+        from cqa.rules import contact
+        cases = [("RU", "Здравствуйте, я Руслан. Какое сообщение вы видите?", True),
+                 ("RU", "Добрый день! Я Лера из поддержки.", True),
+                 ("RU", "Здравствуйте, меня зовут Антон. Переустановите приложение.", True),
+                 ("RU", "Привет, где именно ищете?", False),
+                 ("RU", "Да компания федеброкер меня зовут [Имя скрыто], мы с вами ранее разговаривали.", False),
+                 ("RU", "Фридом брокера [Имя скрыто] Здравствуйте, чем могу вам помочь?", True),
+                 ("RU", "Здравствуйте, я вам помогу.", False),
+                 ("KZ", "Сәлеметсіз бе, мен Айбекпін. Мәзірді ашыңыз.", True),
+                 ("KZ", "Сәлем. Қай сайтқа кірдіңіз?", False),
+                 ("KZ", "Здравствуйте, я Айбек.", False),  # greeting not in the client's language
+                 ("EN", "Hi, I'm Tyler. I can see a restriction.", True),
+                 ("EN", "Open settings then go back and log in again.", False)]
+        for lang, text, want in cases:
+            got = contact(self.conv(lang, ("client", "?"), ("bot", "Hello"), ("operator", text)))
+            self.assertIs(got["value"], want, text)
+            self.assertEqual(got["evidence_turns"], [3])
+
+    def test_discovery_gate(self):
+        from cqa.rules import gate_discovery, clarifying_questions
+        asked = self.conv("RU", ("client", "Где тариф?"), ("operator", "Здравствуйте, я Лера. Вы в приложении или в веб-версии?"))
+        silent = self.conv("RU", ("client", "Где тариф?"), ("operator", "Здравствуйте, я Лера. Чем могу помочь? Откройте «Кабинет»."))
+        currency = self.conv("RU", ("client", "Деньги не пришли"), ("operator", "Укажите, пожалуйста, в какой валюте был перевод."))
+        self.assertEqual(clarifying_questions(asked), [2])
+        self.assertEqual(clarifying_questions(silent), [])
+        self.assertEqual(clarifying_questions(currency), [2])
+        self.assertIs(gate_discovery({"value": None, "rationale": "", "evidence_turns": []}, asked)["value"], True)
+        self.assertIsNone(gate_discovery({"value": True, "rationale": "", "evidence_turns": []}, silent)["value"])
+        keep = {"value": False, "rationale": "переспросил известное", "evidence_turns": [2]}
+        self.assertIs(gate_discovery(keep, asked), keep)  # the model decides between Yes and No
