@@ -24,7 +24,7 @@ DEFAULTS = {
     "timeout": 600,
     "api_key_env": "CQA_API_KEY",
     "rationale_language": "ru",    # язык обоснований в results.json: ru / kk / en
-    "fact_check": True,            # второй вызов модели: факты с цитатами для 01, 02, 07
+    "closure_check": True,         # отдельная проверка «Завершения» (точнее на DEV)
 }
 
 
@@ -32,8 +32,6 @@ def load(path: Path = CONFIG_FILE) -> dict:
     cfg = dict(DEFAULTS)
     if path.exists():
         user = json.loads(path.read_text(encoding="utf-8-sig"))
-        if "closure_check" in user:  # старое имя настройки
-            user.setdefault("fact_check", user.pop("closure_check"))
         unknown = set(user) - set(DEFAULTS)
         if unknown:
             raise SystemExit(f"config.json: unknown keys {sorted(unknown)}; allowed: {sorted(DEFAULTS)}")
@@ -46,4 +44,4 @@ def model_config(cfg: dict) -> ModelConfig:
                        temperature=float(cfg["temperature"]), num_ctx=int(cfg["num_ctx"]),
                        num_predict=int(cfg["num_predict"]), timeout=int(cfg["timeout"]),
                        api_key_env=cfg["api_key_env"], rationale_language=cfg["rationale_language"],
-                       fact_check=bool(cfg["fact_check"]))
+                       closure_check=bool(cfg["closure_check"]))
