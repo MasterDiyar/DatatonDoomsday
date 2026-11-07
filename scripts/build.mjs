@@ -1,0 +1,13 @@
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+const root=new URL('../',import.meta.url);
+const get=p=>readFile(new URL(p,root),'utf8');
+const dataset=await get('src/dataset.mjs'),official=await get('src/official-checklist.mjs'),core=await get('src/core.mjs'),entry=await get('worker/index.js');
+const assets={};
+for(const [url,file,type] of [['/','index.html','text/html; charset=utf-8'],['/index.html','index.html','text/html; charset=utf-8'],['/app.js','app.js','text/javascript; charset=utf-8'],['/style.css','style.css','text/css; charset=utf-8'],['/favicon.svg','favicon.svg','image/svg+xml']])assets[url]={body:await get('public/'+file),type};
+const clean=s=>s.replace(/^import .*?;\s*$/gm,'').replace(/^export (?=(?:async )?(?:function|class|const|let))/gm,'');
+const output=clean(dataset)+'\n'+clean(official)+'\n'+clean(core)+'\nconst ASSETS='+JSON.stringify(assets)+';\n'+entry.replace(/^import .*?;\s*$/gm,'');
+await rm(new URL('dist/',root),{recursive:true,force:true});
+await mkdir(new URL('dist/server/',root),{recursive:true});await mkdir(new URL('dist/.openai/',root),{recursive:true});
+await writeFile(new URL('dist/server/index.js',root),output);
+await writeFile(new URL('dist/.openai/hosting.json',root),await get('.openai/hosting.json'));
+console.log(`Built single Worker: ${(Buffer.byteLength(output)/1024).toFixed(0)} KiB`);
