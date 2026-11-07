@@ -66,22 +66,26 @@ def _found(quote: str, text: str) -> bool:
     return bool(q) and q in _norm(text)
 
 
-def ask(conv: Conversation, cfg: ModelConfig) -> dict | None:
-    """Один короткий вызов модели. None, если ответ не получен (тогда остаётся основная оценка)."""
+def ask(conv: Conversation, cfg: ModelConfig) -> tuple[dict | None, str]:
+    """Один короткий вызов модели. Возвращает (факты, причина сбоя). При сбое остаётся основная оценка."""
     try:
         text, _ = chat(cfg, [{"role": "system", "content": PROMPT}, {"role": "user", "content": prompt.user_prompt(conv)}],
                        SCHEMA if cfg.backend == "ollama" else None, temperature=0.0)
-        data = json.loads(text)
-        # Неполный ответ не трактуется как «фактов нет»: тогда остаются ответы основного промпта.
-        if not isinstance(data, dict) or any(k not in data for k in SCHEMA["required"]):
-            return None
-        return data
     except ModelError as e:
         if e.fatal:
             raise
-        return None
+        return None, f"model error: {e}"
+    try:
+        data = json.loads(text)
     except json.JSONDecodeError:
-        return None
+        return None, f"answer is not JSON: {text[:120]!r}"
+    # Неполный ответ не трактуется как «фактов нет»: тогда остаются ответы основного промпта.
+    if not isinstance(data, dict):
+        return None, "answer is not a JSON object"
+    missing = [k for k in SCHEMA["required"] if k not in data]
+    if missing:
+        return None, f"answer lacks {', '.join(missing)}"
+    return data, ""
 
 
 def apply(final: dict, facts: dict, conv: Conversation) -> dict:
