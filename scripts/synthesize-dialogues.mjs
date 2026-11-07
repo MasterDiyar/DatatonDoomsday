@@ -20,7 +20,7 @@ const env=process.env;
 const key=env.TEACHER_API_KEY||env.MODEL_API_KEY,model=env.TEACHER_MODEL_NAME||env.MODEL_NAME;
 const baseURL=(env.TEACHER_BASE_URL||env.MODEL_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
 if(!key||!model){console.error('Set TEACHER_API_KEY and TEACHER_MODEL_NAME (or MODEL_API_KEY / MODEL_NAME).');process.exit(1);}
-const endpoint=safeModelURL(`${baseURL}/chat/completions`,env.ALLOW_LOCAL_MODEL==='1');
+const endpoint=safeModelURL(`${baseURL}/chat/completions`,true,true);
 
 // Small deterministic PRNG so the scenario list is reproducible for a given seed.
 let s=Number(values.seed)>>>0||1;const rand=()=>((s=Math.imul(s^(s>>>15),2246822507)^Math.imul(s^(s>>>13),3266489909),s^=s>>>16)>>>0)/4294967296;

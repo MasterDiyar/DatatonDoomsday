@@ -32,12 +32,12 @@ const checklist=validateChecklist(await json(values.checklist));
 if(!['model','rules'].includes(values.engine))throw new Error('engine must be model or rules');
 if(values.engine==='model'&&(!process.env.MODEL_API_KEY||!process.env.MODEL_NAME))throw new Error('Set MODEL_API_KEY and MODEL_NAME. There is no silent fallback.');
 if(values.engine==='model'){
-  // Check the model address once, with a specific explanation, instead of failing every conversation.
+  // The CLI runs on the team's own machine, so any http(s) model address is accepted
+  // (127.0.0.1, WSL2, LAN GPU server). Checked once with a clear message.
   const base=(process.env.MODEL_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
-  const local=/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(base);
-  if(local&&process.env.ALLOW_LOCAL_MODEL!=='1')throw new Error(`MODEL_BASE_URL=${base} is a local address, but ALLOW_LOCAL_MODEL is not 1. Add the line ALLOW_LOCAL_MODEL=1 to .env (saved as UTF-8).`);
-  try{safeModelURL(`${base}/chat/completions`,process.env.ALLOW_LOCAL_MODEL==='1');}
-  catch(error){throw new Error(`MODEL_BASE_URL=${base} is not allowed: ${error.message} Use http://127.0.0.1:<port>/v1 with ALLOW_LOCAL_MODEL=1 for a local model, or a public https URL.`);}
+  try{safeModelURL(`${base}/chat/completions`,true,true);}
+  catch(error){throw new Error(`MODEL_BASE_URL=${base} is not usable: ${error.message}. Example: MODEL_BASE_URL=http://127.0.0.1:11434/v1`);}
+  console.log(`Model: ${process.env.MODEL_NAME} at ${base}`);
 }
 const extraBody=parseExtraBody(process.env.MODEL_EXTRA_BODY);
 const timeoutMs=Math.max(30,Math.min(300,Number(process.env.MODEL_TIMEOUT_SECONDS)||180))*1000;
@@ -51,7 +51,7 @@ for(const record of records){
   const started=Date.now();let lastError=null,done=false;
   for(let attempt=0;attempt<=retries&&!done;attempt++){
     try{
-      const result=values.engine==='rules'?{results:evaluateRules(record,checklist),usage:null,verification:null}:await evaluateWithModel(record,checklist,{key:process.env.MODEL_API_KEY,model:process.env.MODEL_NAME,baseURL:process.env.MODEL_BASE_URL||'https://api.openai.com/v1',allowLocal:process.env.ALLOW_LOCAL_MODEL==='1',verificationMode:values.verification,timeoutMs,extraBody,inputPrice:Number(process.env.MODEL_INPUT_PRICE)||0,outputPrice:Number(process.env.MODEL_OUTPUT_PRICE)||0});
+      const result=values.engine==='rules'?{results:evaluateRules(record,checklist),usage:null,verification:null}:await evaluateWithModel(record,checklist,{key:process.env.MODEL_API_KEY,model:process.env.MODEL_NAME,baseURL:process.env.MODEL_BASE_URL||'https://api.openai.com/v1',allowLocal:true,allowAnyURL:true,verificationMode:values.verification,timeoutMs,extraBody,inputPrice:Number(process.env.MODEL_INPUT_PRICE)||0,outputPrice:Number(process.env.MODEL_OUTPUT_PRICE)||0});
       const pending=result.results.filter(r=>r.answer==='pending').map(r=>r.criterionId);
       if(pending.length&&attempt<retries){lastError=new Error(`pending: ${pending.join(', ')}`);console.warn(`${record.conversation_id}: pending (${pending.join(', ')}), retrying`);continue;}
       const e={id:crypto.randomUUID(),conversationId:record.conversation_id,engine:values.engine,record,checklist,createdAt:new Date().toISOString(),durationMs:Date.now()-started,attempts:attempt+1,...result};
