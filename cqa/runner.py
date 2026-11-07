@@ -12,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import __version__
 from .config import ROOT
 from .data import load_dataset
 from .evaluate import error_entry, evaluate
@@ -49,9 +50,13 @@ def run_dataset(data_path: str, out_path: str, settings: dict, mcfg: ModelConfig
 
     todo = [c for c in convs if (ids is None or c.conversation_id in ids)
             and (force or entries[c.conversation_id].get("status") != "ok")]
+    log(f"cqa {__version__}; fact check: {'on' if mcfg.fact_check else 'OFF'}; rationale language: {mcfg.rationale_language}")
     log(f"{len(convs)} chats in {data_path}; {len(todo)} to evaluate with {mcfg.model} ({mcfg.backend} at {mcfg.base_url})")
+    if not todo and convs:
+        log("Nothing to do: every chat already has status ok in this file. Add --force to evaluate again.")
     save()
     started, done, fatal = time.time(), 0, None
+    facts_ok = facts_failed = 0
     if todo and mcfg.backend == "ollama":
         log("The first chat also loads the model into memory (can take a minute). "
             "In another window, `ollama ps` shows whether it runs on GPU.")
@@ -81,6 +86,9 @@ def run_dataset(data_path: str, out_path: str, settings: dict, mcfg: ModelConfig
                 "Run the same command again to continue from where it stopped.")
             return 130
         entries[conv.conversation_id] = entry
+        if "fact_check" in info:
+            facts_failed += "error" in info["fact_check"]
+            facts_ok += "error" not in info["fact_check"]
         with open(details_path, "a", encoding="utf-8") as f:
             f.write(json.dumps({"conversation_id": conv.conversation_id, "model": mcfg.model, **info},
                                ensure_ascii=False) + "\n")
@@ -92,6 +100,9 @@ def run_dataset(data_path: str, out_path: str, settings: dict, mcfg: ModelConfig
         live("\r" + " " * 70 + "\r")
         log(f"[{i}/{len(todo)}] {conv.conversation_id}: {shown}{flag}  ({time.time() - t0:.0f}s, "
             f"ETA {avg * (len(todo) - i) / 60:.1f} min)")
+    if mcfg.fact_check and (facts_ok or facts_failed):
+        log(f"\nFact check applied to {facts_ok} of {facts_ok + facts_failed} chats"
+            + (f"; failed for {facts_failed} (main prompt answers kept, reasons in {details_path.name})" if facts_failed else "."))
     if fatal:
         log(f"\nSTOPPED: {fatal}")
         log("Fix the problem (python run.py check) and run the same command again; finished chats are kept.")

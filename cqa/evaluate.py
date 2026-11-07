@@ -149,8 +149,12 @@ def evaluate(conv: Conversation, cfg: ModelConfig, votes: int = 1, retries: int 
     final = _majority(runs)
     if cfg.fact_check:
         # Второй короткий вызов: факты с цитатами для 01, 02, 07 (см. cqa/facts.py).
-        found = fact_check.ask(conv, cfg)  # ModelError(fatal) propagates like the main call
-        if found is not None:
+        found, problem = fact_check.ask(conv, cfg)  # ModelError(fatal) propagates like the main call
+        if found is None:
+            details["fact_check"] = {"error": problem}
+            if log:
+                log(f"\n  fact check failed, main prompt answers kept: {problem}")
+        else:
             checked = fact_check.apply(final, found, conv)
             details["fact_check"] = {"facts": found, "changed": {c: [final[c]["value"], checked[c]["value"]]
                                                                 for c in ("contact", "discovery", "closure")
