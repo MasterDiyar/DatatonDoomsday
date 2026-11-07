@@ -11,5 +11,5 @@
   "timeout": 600,
   "api_key_env": "CQA_API_KEY",
   "rationale_language": "ru",
-  "fact_check": true
+  "closure_check": true
 }

@@ -35,7 +35,7 @@ class ModelConfig:
     seed: int = 42
     api_key_env: str = "CQA_API_KEY"
     rationale_language: str = "ru"   # язык обоснований: ru / kk / en
-    fact_check: bool = True          # второй вызов: факты с цитатами для 01, 02, 07
+    closure_check: bool = True       # отдельная проверка критерия 07 «Завершение»
 
 
 def _opener(url: str):
