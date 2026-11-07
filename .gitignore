@@ -1,20 +1,20 @@
-dist/
-site.tar.gz
-.data/
-.env
-.env.*
-!.env.example
-*.sqlite*
-*.log
-node_modules/
+# Organiser data and our labels stay out of the public repository (sample.json is fictional).
+datasets/*
+!datasets/sample.json
+labels/
+runs/
 
-# Keep imported organiser datasets out of the public repository.
-datasets/
-/examples/DEV.json
-
-# Fine-tuning outputs: adapters, merged weights, GGUF, virtualenv.
+# Fine-tuning artefacts
+training/data/
 training/out/
 *.gguf
 *.safetensors
-.venv/
+
+# Python
 __pycache__/
+*.pyc
+.venv/
+venv/
+
+# Never commit keys
+.env

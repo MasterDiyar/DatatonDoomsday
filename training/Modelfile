@@ -1,19 +1,14 @@
-# Ollama model for the fine-tuned evaluator (FROM is relative to this file). From the repo root:
-#   ollama create cqa-qwen7b-lora -f training/Modelfile
-# Change FROM if you quantized to another type (e.g. cqa-q4_k_m.gguf).
+# Fine-tuned evaluator for Ollama (FROM is relative to this file). From the project root:
+#   ollama create cqa-qwen7b -f training/Modelfile
 FROM ./out/cqa-q5_k_m.gguf
 
-# Qwen2.5 ChatML, same template the model was fine-tuned with.
+# Qwen2.5 ChatML, the template used during fine-tuning.
 TEMPLATE """{{- range .Messages }}<|im_start|>{{ .Role }}
 {{ .Content }}<|im_end|>
 {{ end }}<|im_start|>assistant
 """
 PARAMETER stop "<|im_end|>"
 PARAMETER stop "<|endoftext|>"
-
-# The prompt (system rules + checklist + transcript) is long; keep the whole of it in context.
+# run.py also sends num_ctx, temperature and the output schema with every request.
 PARAMETER num_ctx 16384
-PARAMETER num_predict 4096
-# Deterministic by default. For --verification verified, send a non-zero temperature via
-# MODEL_EXTRA_BODY='{"temperature":0.3}' so the two independent passes can actually differ.
 PARAMETER temperature 0

@@ -1,0 +1,13 @@
+{
+  "team_name": "DatatonDoomsday",
+  "submission_model_name": "Qwen2.5-7B-Instruct (Ollama, local)",
+  "submission_mode": "local",
+  "backend": "ollama",
+  "base_url": "http://127.0.0.1:11434",
+  "model": "qwen2.5:7b-instruct",
+  "temperature": 0.0,
+  "num_ctx": 16384,
+  "num_predict": 3072,
+  "timeout": 600,
+  "api_key_env": "CQA_API_KEY"
+}

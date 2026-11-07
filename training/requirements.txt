@@ -1,12 +1,10 @@
-# QLoRA fine-tuning on a single NVIDIA GPU (>=12 GB). Install into a fresh venv:
-#   python -m venv .venv && . .venv/bin/activate
-#   pip install --index-url https://download.pytorch.org/whl/cu124 torch
-#   pip install -r training/requirements.txt
-torch>=2.3
+# Only for fine-tuning. Evaluation (run.py) needs no packages at all.
+# 1) PyTorch with CUDA first, e.g.:  pip install torch --index-url https://download.pytorch.org/whl/cu124
+# 2) pip install -r training/requirements.txt
 transformers>=4.46,<5
 peft>=0.13
-bitsandbytes>=0.44
+bitsandbytes>=0.45
 accelerate>=1.0
 datasets>=3.0
-# Fused linear+cross-entropy: avoids materialising full-vocabulary logits for long prompts.
+# Linux / WSL2 only: lowers GPU memory for long prompts.
 liger-kernel>=0.4; sys_platform == "linux"
