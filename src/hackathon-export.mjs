@@ -28,10 +28,15 @@ const ALLOWED = {
 };
 const MODES = ['local','external_api','hybrid'];
 
-/** Raw conversation IDs from an organiser payload, kept even if a record is malformed. */
+/** The records array of an organiser payload, without validating individual records. */
+export function rawRecords(payload) {
+  const records = Array.isArray(payload) ? payload : payload?.data?.records || payload?.records || (payload?.conversation_id ? [payload] : null);
+  if (!Array.isArray(records)) throw new Error('Expected a records array (data.records, records or a top-level array).');
+  return records;
+}
+/** Conversation IDs exactly as the API returned them, kept even if a record is malformed. */
 export function datasetIds(payload) {
-  const records = Array.isArray(payload) ? payload : payload?.data?.records || payload?.records || (payload?.conversation_id ? [payload] : []);
-  return records.map(r => r?.conversation_id).filter(id => typeof id === 'string' && id.trim()).map(id => id.trim());
+  return rawRecords(payload).map(r => r?.conversation_id).filter(id => typeof id === 'string' && id.trim());
 }
 
 function evidenceTurns(result, record) {
@@ -85,15 +90,17 @@ export function buildSubmission({ state, ids = null, teamName, modelName, mode =
   const evaluations = state.evaluations || [];
   const errors = state.errors || [];
   const wanted = ids || [...new Set([...(state.records || []).map(r => r.conversation_id), ...errors.map(e => e.conversationId)])];
+  // Internal records store trimmed IDs; the submission keeps the API's exact ID string.
+  const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.trim() === b.trim();
   const results = [...new Set(wanted)].map(id => {
-    const current = (state.records || []).find(r => r.conversation_id === id);
-    const e = evaluations.filter(e => e.conversationId === id && e.engine === engine && e.checklist?.id === checklistId
+    const current = (state.records || []).find(r => same(r.conversation_id, id));
+    const e = evaluations.filter(e => same(e.conversationId, id) && e.engine === engine && e.checklist?.id === checklistId
       && (!current || JSON.stringify(current) === JSON.stringify(e.record))).at(-1);
     if (e) {
-      try { return toSubmissionEntry(e, { state, useAppeals }); }
+      try { const entry = toSubmissionEntry(e, { state, useAppeals }); entry.conversation_id = id; return entry; }
       catch (error) { return errorEntry(id, `Invalid evaluation: ${error.message}`); }
     }
-    const failure = errors.filter(x => x.conversationId === id).at(-1);
+    const failure = errors.filter(x => same(x.conversationId, id)).at(-1);
     return errorEntry(id, failure ? failure.error : 'Conversation was not evaluated.');
   });
   return { schema_version: '1.0', team_name: teamName, model: { mode, name: modelName }, results };

@@ -110,7 +110,10 @@ export function safeExternalURL(value) {
   if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port!=='443') || !h.includes('.') || h.includes(':') || h==='localhost' || /\.(localhost|local|internal|test)$/.test(h) || (ipv4 && (ipv4[0]===0||ipv4[0]===10||ipv4[0]===127||ipv4[0]>=224||ipv4[0]===169&&ipv4[1]===254||ipv4[0]===172&&ipv4[1]>=16&&ipv4[1]<=31||ipv4[0]===192&&ipv4[1]===168||ipv4[0]===100&&ipv4[1]>=64&&ipv4[1]<=127))) throw new AppError('Нужен публичный HTTPS URL без логина и пароля.');
   return u;
 }
-export function safeModelURL(value,allowLocal=false){
+// allowAny: command-line use on the team's own machine (Ollama in WSL2, a GPU box on the LAN, ...).
+// The hosted app keeps the strict public-HTTPS rule.
+export function safeModelURL(value,allowLocal=false,allowAny=false){
+  if(allowAny){let u;try{u=new URL(value);}catch{throw new AppError(`Некорректный URL модели: ${value}`);}if(!['http:','https:'].includes(u.protocol))throw new AppError(`URL модели должен начинаться с http:// или https://: ${value}`);return u;}
   if(allowLocal){let u;try{u=new URL(value);}catch{throw new AppError('Некорректный URL модели.');}if(['http:','https:'].includes(u.protocol)&&['127.0.0.1','localhost'].includes(u.hostname)&&!u.username&&!u.password)return u;}
   return safeExternalURL(value);
 }
@@ -209,7 +212,7 @@ export function buildModelMessages(record, checklist, review=null) {
   return [{role:'system',content:prompt},{role:'user',content:JSON.stringify(input)}];
 }
 async function oneModelPass(record, checklist, options, fetcher=fetch, review=null) {
-  const endpoint=safeModelURL(`${options.baseURL.replace(/\/$/,'')}/chat/completions`,options.allowLocal);
+  const endpoint=safeModelURL(`${options.baseURL.replace(/\/$/,'')}/chat/completions`,options.allowLocal,options.allowAnyURL===true);
   const messages=buildModelMessages(record,checklist,review);
   const extraBody=options.extraBody&&typeof options.extraBody==='object'&&!Array.isArray(options.extraBody)?options.extraBody:{};
   let response;

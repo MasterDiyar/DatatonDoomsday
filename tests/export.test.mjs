@@ -75,7 +75,7 @@ test('validator rejects duplicates, missing IDs, wrong counts, bad values and 0-
 });
 test('dataset IDs are read from organiser payload shapes without validation',()=>{
   assert.deepEqual(datasetIds({data:{records:[{conversation_id:'a'},{conversation_id:'b',transcript:'broken'}]}}),['a','b']);
-  assert.deepEqual(datasetIds([{conversation_id:' c '}]),['c']);
+  assert.deepEqual(datasetIds([{conversation_id:'c'}]),['c']);
 });
 test('criterion map covers every official checklist criterion',()=>{
   assert.deepEqual(Object.keys(CRITERION_MAP).sort(),defaultChecklist().criteria.map(c=>c.id).sort());
@@ -93,4 +93,10 @@ test('MODEL_EXTRA_BODY must be a JSON object and cannot override protocol fields
   assert.deepEqual(parseExtraBody(''),{});
   assert.deepEqual(parseExtraBody('{"temperature":0.3,"messages":[],"response_format":null}'),{temperature:0.3});
   assert.throws(()=>parseExtraBody('[1]'));assert.throws(()=>parseExtraBody('nope'));
+});
+test('submission keeps the exact API conversation_id string',()=>{
+  const file=build({records:[],evaluations:[evaluation()],errors:[]},{ids:['demo-001 ']});
+  assert.equal(file.results[0].conversation_id,'demo-001 ');
+  assert.equal(file.results[0].status,'ok');
+  assert.deepEqual(datasetIds({records:[{conversation_id:'demo-001 '}]}),['demo-001 ']);
 });
