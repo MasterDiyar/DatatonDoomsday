@@ -1,0 +1,243 @@
+{
+  "schema_version": "1.0",
+  "team_name": "DatatonDoomsday",
+  "model": {
+    "mode": "local",
+    "name": "Qwen2.5-7B-Instruct (Ollama, local)"
+  },
+  "results": [
+    {
+      "conversation_id": "sample-ru-001",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "The operator greeted the client in Russian and introduced themselves in the first response.",
+          "evidence_turns": [
+            3
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": true,
+          "rationale": "The operator asked about the client's tariff plan, which was not explicitly stated but could be inferred from the client's response.",
+          "evidence_turns": [
+            3,
+            4
+          ]
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "No personal data was disclosed, and no secure action was performed, so identification was not required.",
+          "evidence_turns": [
+            5
+          ]
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 20,
+          "rationale": "The operator provided the correct information about the commission rate and offered additional assistance.",
+          "evidence_turns": [
+            5,
+            6
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": true,
+          "rationale": "The operator was polite and offered additional help, but there was no indication of dissatisfaction or inconvenience.",
+          "evidence_turns": [
+            6,
+            7
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 10,
+          "rationale": "The dialogue was clear and coherent, with no noticeable lapses.",
+          "evidence_turns": [
+            3,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "The operator offered further assistance and said goodbye.",
+          "evidence_turns": [
+            7
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "There were no instances of insulting behavior, offering paid services, or disclosing confidential information.",
+          "evidence_turns": [
+            3,
+            5,
+            7
+          ]
+        }
+      ],
+      "score": {
+        "final_score": 100.0,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "sample-kz-001",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "The operator greeted the client and introduced themselves in the first message.",
+          "evidence_turns": [
+            2
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": false,
+          "rationale": "The operator did not clarify the specific balance of the child account, assuming it was the client's main account.",
+          "evidence_turns": [
+            4
+          ]
+        },
+        {
+          "criterion_id": "identification",
+          "value": true,
+          "rationale": "Identification was confirmed by the system after the operator asked for verification.",
+          "evidence_turns": [
+            3
+          ]
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 5,
+          "rationale": "The operator provided the current balance of the client's main account instead of the child account balance.",
+          "evidence_turns": [
+            4
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": false,
+          "rationale": "The operator did not show any empathy or acknowledge the client's specific request for a child account balance.",
+          "evidence_turns": [
+            4
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 7,
+          "rationale": "The dialogue was clear, but the operator did not address the client's specific request.",
+          "evidence_turns": [
+            4
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": false,
+          "rationale": "The chat was closed by the operator without saying goodbye.",
+          "evidence_turns": [
+            5
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "There were no severe errors or violations detected.",
+          "evidence_turns": [
+            2,
+            4
+          ]
+        }
+      ],
+      "score": {
+        "final_score": 45.5,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "sample-en-001",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": false,
+          "rationale": "The operator did not greet the client in the first message and did not introduce themselves.",
+          "evidence_turns": [
+            2
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": false,
+          "rationale": "The operator did not clarify the client's issue before suggesting an alternative solution.",
+          "evidence_turns": [
+            3,
+            4
+          ]
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "No identification was required for this general inquiry, so N/A applies.",
+          "evidence_turns": [
+            3,
+            4
+          ]
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 0,
+          "rationale": "The operator provided an incorrect and inappropriate solution by suggesting a personal investment.",
+          "evidence_turns": [
+            4
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": false,
+          "rationale": "The operator did not address the client's frustration and suggested an inappropriate solution.",
+          "evidence_turns": [
+            4
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 0,
+          "rationale": "The dialogue was poor due to the inappropriate suggestion and lack of clarity.",
+          "evidence_turns": [
+            4
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": false,
+          "rationale": "The chat was disconnected by the client before the operator could provide a proper response or closure.",
+          "evidence_turns": [
+            5
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": true,
+          "rationale": "The operator offered a paid service bypassing the company, which is a critical error.",
+          "evidence_turns": [
+            4
+          ]
+        }
+      ],
+      "score": {
+        "final_score": 0.0,
+        "critical_flag": true
+      }
+    }
+  ]
+}

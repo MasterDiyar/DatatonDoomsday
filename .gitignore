@@ -2,7 +2,6 @@
 datasets/*
 !datasets/sample.json
 labels/
-runs/
 
 # Fine-tuning artefacts
 training/data/
