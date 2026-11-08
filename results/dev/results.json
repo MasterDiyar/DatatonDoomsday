@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "team_name": "DatatonDoomsday",
+  "team_name": "the jigas",
   "model": {
     "mode": "local",
     "name": "Qwen2.5-7B-Instruct (Ollama, local)"
