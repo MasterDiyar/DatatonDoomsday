@@ -30,6 +30,7 @@ button{cursor:pointer}
 /* Top bar */
 .top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
 .brand{font-weight:700;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.brand .team{font-size:12px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:1px 8px}
 .brand i{width:28px;height:28px;border-radius:8px;background:var(--accent);display:inline-grid;place-items:center;color:var(--accent-text);font-style:normal;font-size:15px}
 .pickers{display:flex;gap:12px;flex-wrap:wrap}
 .field{display:flex;flex-direction:column;gap:2px}
@@ -185,7 +186,7 @@ body.single .results{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 </head>
 <body>
 <header class="top">
-  <div class="brand"><i>✓</i>Контроль качества чатов</div>
+  <div class="brand"><i>✓</i>Контроль качества чатов<small class="team">The Jigas</small></div>
   <div class="tabs" role="tablist"><button role="tab" data-view="results" aria-selected="true">Результаты</button><button role="tab" data-view="review" aria-selected="false">Проверка</button></div>
   <div class="pickers">
     <label class="field"><span>Набор диалогов</span><select id="dataset"></select></label>

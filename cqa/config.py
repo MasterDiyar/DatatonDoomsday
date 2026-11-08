@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = ROOT / "config.json"
 
 DEFAULTS = {
-    "team_name": "DatatonDoomsday",
+    "team_name": "The Jigas",
     "submission_model_name": "",   # name written to results.json; defaults to the model id
     "submission_mode": "local",
     "backend": "ollama",
